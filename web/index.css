@@ -1,0 +1,13 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  @apply bg-neutral-light text-neutral-dark font-sans antialiased;
+}
+
+/* Add any global custom styles here */
+.gauge-container svg {
+    max-width: 100%;
+    height: auto;
+}

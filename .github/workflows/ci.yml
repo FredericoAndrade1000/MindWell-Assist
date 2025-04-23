@@ -1,0 +1,64 @@
+name: Node.js CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node-version: [18.x, 20.x] # Test against latest LTS versions
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ matrix.node-version }}
+        cache: 'npm' # Cache npm dependencies
+
+    - name: Install dependencies (Root & Workspaces)
+      run: npm run install:all # Use the custom script from root package.json
+
+    - name: Lint project
+      run: npm run lint --workspaces --if-present
+
+    - name: Run tests (Web & API)
+      run: npm test --workspaces --if-present
+      env:
+        # Set dummy env vars required for tests (API mainly)
+        # Secrets should NOT be hardcoded here. Use GitHub secrets for real keys if needed for integration tests.
+        CI: true # Often disables watch modes etc.
+        PORT: 4001 # Use a different port for tests if needed
+        DATABASE_URL: sqlite::memory: # Use in-memory DB for tests
+        JWT_SECRET: test-jwt-secret-for-ci-dont-use-in-prod
+        ENCRYPTION_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef # 64 hex chars / 32 bytes
+        OPENAI_API_KEY: dummy-openai-key-for-ci # Mock should prevent actual calls
+
+    # Optional: Check test coverage (if reports are generated)
+    # - name: Upload API coverage reports
+    #   uses: actions/upload-artifact@v3
+    #   with:
+    #     name: api-coverage-report-${{ matrix.node-version }}
+    #     path: api/coverage/lcov.info # Adjust path if needed
+
+    - name: Build project (Web & API)
+      run: npm run build --workspaces --if-present
+      env:
+         # Required for Vite build accessing env vars
+         VITE_API_BASE_URL: http://localhost:4000 # Or your production API URL
+
+    # Optional: Deploy step (if configured)
+    # - name: Deploy to production
+    #   if: github.ref == 'refs/heads/main' && matrix.node-version == '20.x' # Deploy only from main branch on latest LTS
+    #   run: |
+    #     echo "Deploying application..."
+    #     # Add your deployment script here (e.g., scp, rsync, serverless deploy)
+

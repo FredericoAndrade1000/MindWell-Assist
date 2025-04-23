@@ -1,0 +1,24 @@
+{
+  "name": "mental-health-platform",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Mental health assessment and assistance platform",
+  "workspaces": [
+    "web",
+    "api"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev -w web\" \"npm run dev -w api\"",
+    "build": "npm run build -w web && npm run build -w api",
+    "test": "npm run test -w web && npm run test -w api",
+    "lint": "npm run lint -w web && npm run lint -w api",
+    "install:all": "npm install && npm install -w web && npm install -w api"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "eslint": "^8.57.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
