@@ -85,7 +85,7 @@ export const Modal = ({ isOpen, onClose, title, children }) => {
                 {children}
                  <div className="mt-4 text-right">
                   <Button variant="outline" onClick={onClose}>
-                    Close
+                    Fechar
                   </Button>
                 </div>
               </Dialog.Panel>
@@ -136,7 +136,7 @@ export const Gauge = ({ value, maxValue, label, id }) => {
 
 // --- Input Fields (Basic example, integrate with React Hook Form) ---
 export const Input = React.forwardRef(({ label, name, type = 'text', error, className = '', ...props }, ref) => (
-  <div className="mb-4">
+  <div className="w-full">
     {label && <label htmlFor={name} className="block text-sm font-medium text-gray-700 mb-1">{label}</label>}
     <input
       id={name}
