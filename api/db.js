@@ -78,33 +78,18 @@ let sequelizeInstance;
 
 const getSequelizeInstance = () => {
     if (!sequelizeInstance) {
-        let dbPath;
-        try {
-            const url = new URL(DATABASE_URL);
-            if (url.protocol !== 'sqlite:') {
-                throw new Error('DATABASE_URL protocol must be sqlite:');
-            }
-            // Resolve the path relative to the current file's directory (__dirname)
-            // Assumes db.js is in the 'api' directory and the path in DATABASE_URL is relative to the project root
-            // e.g., sqlite://api/database.sqlite resolves relative to the project root containing the 'api' folder
-             // Correctly handle paths like 'api/database.sqlite' or '/path/from/root/api/database.sqlite'
-             // The pathname will include the leading slash if present, e.g., /api/database.sqlite
-             // path.resolve needs careful handling depending on whether pathname starts with /
-             const pathname = url.pathname.startsWith('//') ? url.pathname.substring(1) : url.pathname; // Remove leading // if present from URL parsing
-             dbPath = path.resolve(__dirname, '..', pathname); // Go up one level from api directory, then use the path
+        // --- Simpler Path Resolution ---
+        // Define the desired filename for the SQLite database.
+        const dbFilename = 'database.sqlite';
+        // Resolve the absolute path for the database file within the same directory as this script (api/db.js).
+        const dbPath = path.resolve(__dirname, dbFilename);
+        // Log the resolved path for debugging
+        console.log(`[DB] Resolved SQLite path: ${dbPath}`);
+        // --- End Simpler Path Resolution ---
 
-
-        } catch (e) {
-            console.error(`Error parsing DATABASE_URL (${DATABASE_URL}): ${e.message}. Using default path.`);
-            // Fallback or error handling - using a path relative to this file might be safer
-             dbPath = path.resolve(__dirname, 'database.sqlite'); // Default to placing it next to db.js
-             console.warn(`Defaulting SQLite path to: ${dbPath}`);
-        }
-
-
-        sequelizeInstance = new Sequelize(DATABASE_URL, { // Pass the original URL for potential dialect info
+        sequelizeInstance = new Sequelize(DATABASE_URL, { // Pass the original URL (might be used for dialect detection etc.)
             dialect: 'sqlite', // Explicitly set dialect
-            storage: dbPath, // Use the resolved absolute path
+            storage: dbPath, // Use the explicitly resolved absolute path
             logging: process.env.NODE_ENV === 'development' ? console.log : false, // Log SQL in dev
             define: {
                 // Define global model options if needed
