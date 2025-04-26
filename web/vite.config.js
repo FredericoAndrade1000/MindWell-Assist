@@ -8,29 +8,29 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
+      // includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'], // Removido pois agora são referenciados abaixo ou devem vir de public
       manifest: {
         name: 'MindWell Assist',
         short_name: 'MindWell',
         description: 'Mental health self-assessment and resource platform.',
-        theme_color: '#ffffff',
-        background_color: '#ffffff',
+        theme_color: '#ffffff', // Cor principal da UI
+        background_color: '#ffffff', // Cor de fundo para splash screen
         display: 'standalone',
         scope: '/',
         start_url: '/',
         icons: [
           {
-            src: 'pwa-192x192.png', // Create these icons later
+            src: 'src/assets/images/pwa-192x192.png', // Caminho dentro de src
             sizes: '192x192',
             type: 'image/png',
           },
           {
-            src: 'pwa-512x512.png', // Create these icons later
+            src: 'src/assets/images/pwa-512x512.png', // Caminho dentro de src
             sizes: '512x512',
             type: 'image/png',
           },
           {
-            src: 'pwa-512x512.png', // Maskable icon
+            src: 'src/assets/images/pwa-maskable-512x512.png', // Caminho dentro de src (ou use o pwa-512x512.png se for mascarável)
             sizes: '512x512',
             type: 'image/png',
             purpose: 'maskable',
@@ -38,7 +38,7 @@ export default defineConfig({
         ],
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2,woff}'],
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2,woff,jpg,mp3}'], // Adicionado jpg, mp3
         runtimeCaching: [
           {
             urlPattern: ({ request }) => request.destination === 'document',
@@ -54,9 +54,24 @@ export default defineConfig({
               }
             }
           },
+           {
+             // Cache para imagens importadas de src (gerenciadas pelo workbox)
+             urlPattern: ({ request }) => request.destination === 'image',
+             handler: 'CacheFirst',
+             options: {
+               cacheName: 'image-assets-cache',
+               expiration: {
+                 maxEntries: 100,
+                 maxAgeSeconds: 60 * 60 * 24 * 30 // 30 days
+               },
+               cacheableResponse: {
+                 statuses: [0, 200]
+               }
+             }
+           },
           {
-            urlPattern: ({ url }) => url.pathname.startsWith('/autoavaliacao') || url.pathname.startsWith('/recursos'),
-            handler: 'NetworkFirst', // Try network first, fallback to cache for core offline functionality
+            urlPattern: ({ url }) => url.pathname.startsWith('/autoavaliacao') || url.pathname.startsWith('/recursos') || url.pathname.startsWith('/audio/'), // Adicionado audio
+            handler: 'NetworkFirst',
             options: {
               cacheName: 'app-core-cache',
               expiration: {
@@ -69,12 +84,12 @@ export default defineConfig({
             }
           },
           {
-            urlPattern: ({ request, url }) => request.destination === 'image' || request.destination === 'font',
+            urlPattern: ({ request, url }) => request.destination === 'font',
             handler: 'CacheFirst',
             options: {
-              cacheName: 'assets-cache',
+              cacheName: 'font-assets-cache', // Cache separado para fontes
               expiration: {
-                maxEntries: 100,
+                maxEntries: 30,
                 maxAgeSeconds: 60 * 60 * 24 * 30 // 30 days
               },
               cacheableResponse: {
@@ -82,16 +97,29 @@ export default defineConfig({
               }
             }
           },
+           {
+             // Cache para o áudio (se estiver em /public/audio)
+             urlPattern: ({ request }) => request.destination === 'audio' || request.destination === 'video',
+             handler: 'CacheFirst',
+             options: {
+               cacheName: 'media-cache',
+               expiration: {
+                 maxEntries: 10,
+                 maxAgeSeconds: 60 * 60 * 24 * 14 // 14 days
+               },
+               cacheableResponse: {
+                 statuses: [0, 200]
+               }
+             }
+           },
           {
-            // Runtime caching for API calls (optional, might need adjustment)
-            // Example: Cache GET requests to /api/resources if needed offline
-            urlPattern: ({ url }) => url.origin === self.location.origin && url.pathname.startsWith('/api/resources'), // Adjust if API is elsewhere
+            urlPattern: ({ url }) => url.origin === self.location.origin && url.pathname.startsWith('/api/'), // Cache para API (ajuste a URL base se necessário)
             handler: 'NetworkFirst',
             options: {
               cacheName: 'api-cache',
-              networkTimeoutSeconds: 10, // If network fails within 10s, use cache
+              networkTimeoutSeconds: 10,
               expiration: {
-                maxEntries: 20,
+                maxEntries: 50, // Aumentado um pouco
                 maxAgeSeconds: 60 * 60 * 24 // 1 day
               },
               cacheableResponse: {
@@ -102,7 +130,7 @@ export default defineConfig({
         ]
       },
       devOptions: {
-        enabled: true // Enable PWA in dev mode for testing
+        enabled: true
       }
     })
   ],
@@ -113,6 +141,6 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'jsdom',
-    setupFiles: './src/setupTests.js', // Optional setup file for tests
+    setupFiles: './src/setupTests.js',
   },
 })

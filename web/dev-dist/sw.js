@@ -82,7 +82,7 @@ define(['./workbox-cc2c504f'], (function (workbox) { 'use strict';
     "revision": "3ca0b8505b4bec776b69afdba2768812"
   }, {
     "url": "index.html",
-    "revision": "0.3frmuonj5n8"
+    "revision": "0.8heroi5c06"
   }], {});
   workbox.cleanupOutdatedCaches();
   workbox.registerRoute(new workbox.NavigationRoute(workbox.createHandlerBoundToURL("index.html"), {
@@ -100,8 +100,19 @@ define(['./workbox-cc2c504f'], (function (workbox) { 'use strict';
     })]
   }), 'GET');
   workbox.registerRoute(({
+    request
+  }) => request.destination === "image", new workbox.CacheFirst({
+    "cacheName": "image-assets-cache",
+    plugins: [new workbox.ExpirationPlugin({
+      maxEntries: 100,
+      maxAgeSeconds: 2592000
+    }), new workbox.CacheableResponsePlugin({
+      statuses: [0, 200]
+    })]
+  }), 'GET');
+  workbox.registerRoute(({
     url
-  }) => url.pathname.startsWith("/autoavaliacao") || url.pathname.startsWith("/recursos"), new workbox.NetworkFirst({
+  }) => url.pathname.startsWith("/autoavaliacao") || url.pathname.startsWith("/recursos") || url.pathname.startsWith("/audio/"), new workbox.NetworkFirst({
     "cacheName": "app-core-cache",
     plugins: [new workbox.ExpirationPlugin({
       maxEntries: 50,
@@ -113,22 +124,33 @@ define(['./workbox-cc2c504f'], (function (workbox) { 'use strict';
   workbox.registerRoute(({
     request,
     url
-  }) => request.destination === "image" || request.destination === "font", new workbox.CacheFirst({
-    "cacheName": "assets-cache",
+  }) => request.destination === "font", new workbox.CacheFirst({
+    "cacheName": "font-assets-cache",
     plugins: [new workbox.ExpirationPlugin({
-      maxEntries: 100,
+      maxEntries: 30,
       maxAgeSeconds: 2592000
     }), new workbox.CacheableResponsePlugin({
       statuses: [0, 200]
     })]
   }), 'GET');
   workbox.registerRoute(({
+    request
+  }) => request.destination === "audio" || request.destination === "video", new workbox.CacheFirst({
+    "cacheName": "media-cache",
+    plugins: [new workbox.ExpirationPlugin({
+      maxEntries: 10,
+      maxAgeSeconds: 1209600
+    }), new workbox.CacheableResponsePlugin({
+      statuses: [0, 200]
+    })]
+  }), 'GET');
+  workbox.registerRoute(({
     url
-  }) => url.origin === self.location.origin && url.pathname.startsWith("/api/resources"), new workbox.NetworkFirst({
+  }) => url.origin === self.location.origin && url.pathname.startsWith("/api/"), new workbox.NetworkFirst({
     "cacheName": "api-cache",
     "networkTimeoutSeconds": 10,
     plugins: [new workbox.ExpirationPlugin({
-      maxEntries: 20,
+      maxEntries: 50,
       maxAgeSeconds: 86400
     }), new workbox.CacheableResponsePlugin({
       statuses: [0, 200]

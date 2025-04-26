@@ -1,8 +1,9 @@
 import React, { Fragment } from 'react';
 import { Dialog, Transition } from '@headlessui/react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faSpinner } from '@fortawesome/free-solid-svg-icons';
+import { faSpinner, faArrowLeft } from '@fortawesome/free-solid-svg-icons'; // <-- Adicione faArrowLeft aqui
 import GaugeChart from 'react-gauge-chart'; // Using react-gauge-chart for simplicity
+import { Link } from 'react-router-dom'; // <--- ADICIONE ESTA LINHA
 
 // --- Button ---
 export const Button = ({
@@ -73,7 +74,7 @@ export const Modal = ({ isOpen, onClose, title, children }) => {
               leaveFrom="opacity-100 scale-100"
               leaveTo="opacity-0 scale-95"
             >
-              <Dialog.Panel className="w-full max-w-md transform overflow-hidden rounded-2xl bg-white p-6 text-left align-middle shadow-xl transition-all">
+              <Dialog.Panel className="w-full transform overflow-hidden rounded-2xl bg-white p-6 text-left align-middle shadow-xl transition-all">
                 {title && (
                   <Dialog.Title
                     as="h3"
@@ -236,3 +237,18 @@ export const Alert = ({ type = 'info', title, message, className = '' }) => {
     </div>
   );
 };
+
+
+
+export const RecursoLayout = ({ children, title, backLink = "/recursos" }) => (
+  <Card className="max-w-4xl mx-auto p-6 md:p-8">
+    <Link to={backLink} className="text-sm text-primary hover:text-primary-dark mb-6 inline-flex items-center transition-colors">
+      <FontAwesomeIcon icon={faArrowLeft} className="mr-2" />
+      Voltar para Recursos
+    </Link>
+    <h1 className="text-3xl md:text-4xl font-bold text-primary mb-6 md:mb-8 border-b pb-4">{title}</h1>
+    <div className="prose prose-neutral lg:prose-lg max-w-none prose-a:text-primary hover:prose-a:text-primary-dark prose-strong:font-semibold">
+      {children}
+    </div>
+  </Card>
+);

@@ -1,127 +1,139 @@
-import { create } from 'zustand'
-import { persist, createJSONStorage } from 'zustand/middleware'
-import axios from 'axios'
+// store.js - Teste com API, sem persist
+import { create } from 'zustand';
+// REMOVIDO: import { persist, createJSONStorage } from 'zustand/middleware'; // << NÃO adicione ainda
+import axios from 'axios'; // << ADICIONADO DE VOLTA
+
+console.log("Loading store.js - Teste com API, sem persist");
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
 
-// Helper to check JWT expiration
+// Helper to check JWT expiration (ADICIONADO DE VOLTA)
 const isTokenExpired = (token) => {
   if (!token) return true;
   try {
     const expiry = (JSON.parse(atob(token.split('.')[1]))).exp;
     return (Math.floor((new Date).getTime() / 1000)) >= expiry;
   } catch (e) {
-    return true; // Invalid token format
+    console.error("Error parsing token expiration:", e); // Log error here
+    return true; // Invalid token format or other error
   }
 };
 
-export const useAuthStore = create(
-  persist(
-    (set, get) => ({
-      token: null,
-      user: null, // { id, email, role }
-      isAuthenticated: false,
-      isLoading: false, // To track login/register loading state
-      error: null, // To store login/register errors
+// Modifique 'create' para NÃO usar 'persist'
+export const useAuthStore = create((set, get) => ({
+    token: null,
+    user: null,
+    isAuthenticated: false,
+    isLoading: false,
+    error: null,
 
-      // Action to initialize state, potentially validate token
-      initAuth: async () => {
-        const token = get().token;
-        if (token && !isTokenExpired(token)) {
-          try {
-            // Optional: Validate token with backend on initial load
-             const response = await axios.get(`${API_BASE_URL}/auth/me`, {
-               headers: { Authorization: `Bearer ${token}` }
-             });
-             set({ isAuthenticated: true, user: response.data, error: null });
-          } catch (error) {
-             console.error("Token validation failed:", error);
-             set({ token: null, user: null, isAuthenticated: false, error: 'Session expired or invalid.' });
-          }
-        } else if (token) {
-            // Token exists but is expired
-            set({ token: null, user: null, isAuthenticated: false, error: 'Session expired.' });
-        } else {
-            set({ isAuthenticated: false, user: null, error: null });
+    // Action to initialize state (LÓGICA DE VOLTA)
+    initAuth: async () => {
+        set({ isLoading: true }); // Indica que está carregando
+        // Tenta pegar o token inicial (não persistido agora, então será null)
+        const initialToken = get().token;
+
+        // --- LÓGICA IMPORTANTE: Rehidratação Manual do Token (já que persist está desativado) ---
+        // Tenta ler o token diretamente do localStorage para este teste
+        let rehydratedToken = null;
+        try {
+            const authStorage = localStorage.getItem('auth-storage');
+            if (authStorage) {
+                const parsedStorage = JSON.parse(authStorage);
+                rehydratedToken = parsedStorage?.state?.token;
+                if (rehydratedToken) {
+                    set({ token: rehydratedToken }); // Atualiza o estado do store com o token
+                    console.log("Manually rehydrated token from localStorage for initAuth test.");
+                     // Configura o header do Axios imediatamente após reidratar
+                     if (!isTokenExpired(rehydratedToken)) {
+                        axios.defaults.headers.common['Authorization'] = `Bearer ${rehydratedToken}`;
+                     } else {
+                         delete axios.defaults.headers.common['Authorization'];
+                     }
+                }
+            }
+        } catch (e) {
+            console.error("Failed to manually rehydrate token from localStorage:", e);
+            rehydratedToken = null; // Garante que está null se falhar
+            set({ token: null });
+             delete axios.defaults.headers.common['Authorization'];
         }
-      },
+        // -------------------------------------------------------------------------------
 
-      // Action for logging in
-      login: async (email, password) => {
+
+        const tokenToValidate = get().token; // Pega o token potencialmente reidratado
+
+        if (tokenToValidate && !isTokenExpired(tokenToValidate)) {
+          try {
+             const response = await axios.get(`${API_BASE_URL}/auth/me`, {
+               headers: { Authorization: `Bearer ${tokenToValidate}` } // Usa o token validado
+             });
+             set({ isAuthenticated: true, user: response.data, error: null, isLoading: false });
+          } catch (error) {
+             console.error("Token validation failed during initAuth:", error);
+             set({ token: null, user: null, isAuthenticated: false, error: 'Sessão expirada ou inválida.', isLoading: false });
+             delete axios.defaults.headers.common['Authorization']; // Limpa o header se a validação falhar
+          }
+        } else if (tokenToValidate) {
+            set({ token: null, user: null, isAuthenticated: false, error: 'Sessão expirada.', isLoading: false });
+            delete axios.defaults.headers.common['Authorization']; // Limpa o header se expirado
+        } else {
+            set({ isAuthenticated: false, user: null, error: null, isLoading: false });
+             delete axios.defaults.headers.common['Authorization']; // Garante que está limpo se não houver token
+        }
+    },
+
+    // Action for logging in (LÓGICA DE VOLTA)
+    login: async (email, password) => {
         set({ isLoading: true, error: null });
         try {
           const response = await axios.post(`${API_BASE_URL}/auth/login`, { email, password });
           const { token, user } = response.data;
           set({ token, user, isAuthenticated: true, isLoading: false, error: null });
-          axios.defaults.headers.common['Authorization'] = `Bearer ${token}`; // Set default header for subsequent requests
-          return true; // Indicate success
+          axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+          return true;
         } catch (error) {
-          const errorMessage = error.response?.data?.message || 'Login failed. Please check your credentials.';
+          const errorMessage = error.response?.data?.message || 'Login falhou. Verifique suas credenciais.';
           set({ isLoading: false, error: errorMessage, token: null, user: null, isAuthenticated: false });
+          delete axios.defaults.headers.common['Authorization']; // Limpa header em falha de login
           console.error("Login error:", error);
-          return false; // Indicate failure
+          return false;
         }
-      },
+    },
 
-      // Action for registering
-      register: async (email, password) => {
-          set({ isLoading: true, error: null });
-          try {
-              await axios.post(`${API_BASE_URL}/auth/register`, { email, password });
-              // Optionally log in the user directly after registration
-              // await get().login(email, password); // Uncomment to auto-login
-              set({ isLoading: false, error: null });
-               return true; // Indicate success
-          } catch (error) {
-              const errorMessage = error.response?.data?.message || 'Registration failed.';
-              set({ isLoading: false, error: errorMessage });
-              console.error("Registration error:", error);
-              return false; // Indicate failure
-          }
-      },
+    // Action for registering (LÓGICA DE VOLTA)
+    register: async (email, password) => {
+        set({ isLoading: true, error: null });
+        try {
+            await axios.post(`${API_BASE_URL}/auth/register`, { email, password });
+            set({ isLoading: false, error: null });
+            return true;
+        } catch (error) {
+            const errorMessage = error.response?.data?.message || 'Falha no registro.';
+            set({ isLoading: false, error: errorMessage });
+            console.error("Registration error:", error);
+            return false;
+        }
+    },
 
-      // Action for logging out
-      logout: () => {
+    // Action for logging out (LÓGICA DE VOLTA)
+    logout: () => {
         set({ token: null, user: null, isAuthenticated: false, isLoading: false, error: null });
-        delete axios.defaults.headers.common['Authorization']; // Remove default header
-        // Optionally call a backend logout endpoint if needed (e.g., to invalidate refresh tokens)
-      },
-    }),
-    {
-      name: 'auth-storage', // name of the item in storage (must be unique)
-      storage: createJSONStorage(() => localStorage), // use localStorage
-      partialize: (state) => ({ token: state.token }), // only persist the token
-      onRehydrateStorage: (state) => {
-        // Optional: Can run logic upon rehydration
-        console.log("Auth state rehydrated");
-        // Set Axios default header if token exists after rehydration
-        if (state?.token && !isTokenExpired(state.token)) {
-           axios.defaults.headers.common['Authorization'] = `Bearer ${state.token}`;
-        }
-      }
+        delete axios.defaults.headers.common['Authorization'];
+         // Limpa manualmente o localStorage simulando o que o persist faria
+         try {
+             localStorage.removeItem('auth-storage');
+             console.log("Manually cleared auth-storage on logout.");
+         } catch(e) {
+             console.error("Failed to clear auth-storage on logout:", e);
+         }
+    },
+
+    // Action to clear the error message manually (LÓGICA DE VOLTA)
+    clearError: () => {
+        set({ error: null });
     }
-  )
-)
 
-// Custom Hook for Protected Routes
-export const useAuthGuard = (allowedRoles = []) => {
-    const { isAuthenticated, user } = useAuthStore();
-    const navigate = ReactRouterDOM.useNavigate(); // Needs React Router context
+}));
 
-    React.useEffect(() => {
-        if (!isAuthenticated) {
-            navigate('/login', { replace: true });
-            return;
-        }
-        if (allowedRoles.length > 0 && !allowedRoles.includes(user?.role)) {
-             navigate('/', { replace: true }); // Or a specific 'unauthorized' page
-             return;
-        }
-    }, [isAuthenticated, user, allowedRoles, navigate]);
-
-    // Return auth state for conditional rendering within the component
-    return { isAuthenticated, user };
-};
-
-// Make sure React Router DOM is imported where useAuthGuard is used
-// import * as ReactRouterDOM from 'react-router-dom';
+console.log("store.js (API logic only) processed");

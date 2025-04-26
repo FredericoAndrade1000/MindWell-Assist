@@ -46,3 +46,167 @@
 2025-04-24T19:42:59.537Z - Scheduled 'anonymizeOldAssessments' job for 03:00 UTC daily.
 2025-04-24T19:42:59.538Z - Scheduled 'calculateDailyStats' job for 00:05 UTC daily.
 2025-04-24T19:42:59.538Z - Started 2 cron jobs.
+2025-04-24T22:57:15.690Z - Initializing cron jobs...
+2025-04-24T22:57:15.706Z - Scheduled 'anonymizeOldAssessments' job for 03:00 UTC daily.
+2025-04-24T22:57:15.707Z - Scheduled 'calculateDailyStats' job for 00:05 UTC daily.
+2025-04-24T22:57:15.707Z - Started 2 cron jobs.
+2025-04-24T22:59:12.347Z - Initializing cron jobs...
+2025-04-24T22:59:12.362Z - Scheduled 'anonymizeOldAssessments' job for 03:00 UTC daily.
+2025-04-24T22:59:12.363Z - Scheduled 'calculateDailyStats' job for 00:05 UTC daily.
+2025-04-24T22:59:12.363Z - Started 2 cron jobs.
+2025-04-24T23:06:51.146Z - Initializing cron jobs...
+2025-04-24T23:06:51.162Z - Scheduled 'anonymizeOldAssessments' job for 03:00 UTC daily.
+2025-04-24T23:06:51.162Z - Scheduled 'calculateDailyStats' job for 00:05 UTC daily.
+2025-04-24T23:06:51.163Z - Started 2 cron jobs.
+2025-04-24T23:14:28.696Z - Initializing cron jobs...
+2025-04-24T23:14:28.713Z - Scheduled 'anonymizeOldAssessments' job for 03:00 UTC daily.
+2025-04-24T23:14:28.714Z - Scheduled 'calculateDailyStats' job for 00:05 UTC daily.
+2025-04-24T23:14:28.714Z - Started 2 cron jobs.
+2025-04-24T23:18:04.813Z - Initializing cron jobs...
+2025-04-24T23:18:04.829Z - Scheduled 'anonymizeOldAssessments' job for 03:00 UTC daily.
+2025-04-24T23:18:04.832Z - Scheduled 'calculateDailyStats' job for 00:05 UTC daily.
+2025-04-24T23:18:04.833Z - Started 2 cron jobs.
+2025-04-24T23:23:00.606Z - Initializing cron jobs...
+2025-04-24T23:23:00.621Z - Scheduled 'anonymizeOldAssessments' job for 03:00 UTC daily.
+2025-04-24T23:23:00.622Z - Scheduled 'calculateDailyStats' job for 00:05 UTC daily.
+2025-04-24T23:23:00.622Z - Started 2 cron jobs.
+2025-04-24T23:24:51.362Z - Initializing cron jobs...
+2025-04-24T23:24:51.378Z - Scheduled 'anonymizeOldAssessments' job for 03:00 UTC daily.
+2025-04-24T23:24:51.379Z - Scheduled 'calculateDailyStats' job for 00:05 UTC daily.
+2025-04-24T23:24:51.379Z - Started 2 cron jobs.
+2025-04-24T23:26:31.282Z - Initializing cron jobs...
+2025-04-24T23:26:31.297Z - Scheduled 'anonymizeOldAssessments' job for 03:00 UTC daily.
+2025-04-24T23:26:31.298Z - Scheduled 'calculateDailyStats' job for 00:05 UTC daily.
+2025-04-24T23:26:31.298Z - Started 2 cron jobs.
+2025-04-24T23:31:29.421Z - Initializing cron jobs...
+2025-04-24T23:31:29.437Z - Scheduled 'anonymizeOldAssessments' job for 03:00 UTC daily.
+2025-04-24T23:31:29.437Z - Scheduled 'calculateDailyStats' job for 00:05 UTC daily.
+2025-04-24T23:31:29.438Z - Started 2 cron jobs.
+2025-04-24T23:31:32.042Z - Initializing cron jobs...
+2025-04-24T23:31:32.058Z - Scheduled 'anonymizeOldAssessments' job for 03:00 UTC daily.
+2025-04-24T23:31:32.059Z - Scheduled 'calculateDailyStats' job for 00:05 UTC daily.
+2025-04-24T23:31:32.059Z - Started 2 cron jobs.
+2025-04-24T23:39:03.453Z - Initializing cron jobs...
+2025-04-24T23:39:03.468Z - Scheduled 'anonymizeOldAssessments' job for 03:00 UTC daily.
+2025-04-24T23:39:03.469Z - Scheduled 'calculateDailyStats' job for 00:05 UTC daily.
+2025-04-24T23:39:03.470Z - Started 2 cron jobs.
+2025-04-24T23:39:37.025Z - Initializing cron jobs...
+2025-04-24T23:39:37.041Z - Scheduled 'anonymizeOldAssessments' job for 03:00 UTC daily.
+2025-04-24T23:39:37.042Z - Scheduled 'calculateDailyStats' job for 00:05 UTC daily.
+2025-04-24T23:39:37.042Z - Started 2 cron jobs.
+2025-04-24T23:40:16.846Z - Initializing cron jobs...
+2025-04-24T23:40:16.863Z - Scheduled 'anonymizeOldAssessments' job for 03:00 UTC daily.
+2025-04-24T23:40:16.864Z - Scheduled 'calculateDailyStats' job for 00:05 UTC daily.
+2025-04-24T23:40:16.864Z - Started 2 cron jobs.
+2025-04-24T23:47:22.209Z - Initializing cron jobs...
+2025-04-24T23:47:22.226Z - Scheduled 'anonymizeOldAssessments' job for 03:00 UTC daily.
+2025-04-24T23:47:22.227Z - Scheduled 'calculateDailyStats' job for 00:05 UTC daily.
+2025-04-24T23:47:22.227Z - Started 2 cron jobs.
+2025-04-24T23:47:32.086Z - Initializing cron jobs...
+2025-04-24T23:47:32.102Z - Scheduled 'anonymizeOldAssessments' job for 03:00 UTC daily.
+2025-04-24T23:47:32.103Z - Scheduled 'calculateDailyStats' job for 00:05 UTC daily.
+2025-04-24T23:47:32.103Z - Started 2 cron jobs.
+2025-04-24T23:48:37.861Z - Initializing cron jobs...
+2025-04-24T23:48:37.877Z - Scheduled 'anonymizeOldAssessments' job for 03:00 UTC daily.
+2025-04-24T23:48:37.878Z - Scheduled 'calculateDailyStats' job for 00:05 UTC daily.
+2025-04-24T23:48:37.878Z - Started 2 cron jobs.
+2025-04-24T23:50:19.614Z - Initializing cron jobs...
+2025-04-24T23:50:19.630Z - Scheduled 'anonymizeOldAssessments' job for 03:00 UTC daily.
+2025-04-24T23:50:19.631Z - Scheduled 'calculateDailyStats' job for 00:05 UTC daily.
+2025-04-24T23:50:19.631Z - Started 2 cron jobs.
+2025-04-24T23:51:24.463Z - Initializing cron jobs...
+2025-04-24T23:51:24.480Z - Scheduled 'anonymizeOldAssessments' job for 03:00 UTC daily.
+2025-04-24T23:51:24.481Z - Scheduled 'calculateDailyStats' job for 00:05 UTC daily.
+2025-04-24T23:51:24.481Z - Started 2 cron jobs.
+2025-04-24T23:52:02.223Z - Initializing cron jobs...
+2025-04-24T23:52:02.239Z - Scheduled 'anonymizeOldAssessments' job for 03:00 UTC daily.
+2025-04-24T23:52:02.240Z - Scheduled 'calculateDailyStats' job for 00:05 UTC daily.
+2025-04-24T23:52:02.240Z - Started 2 cron jobs.
+2025-04-24T23:52:05.570Z - Initializing cron jobs...
+2025-04-24T23:52:05.587Z - Scheduled 'anonymizeOldAssessments' job for 03:00 UTC daily.
+2025-04-24T23:52:05.588Z - Scheduled 'calculateDailyStats' job for 00:05 UTC daily.
+2025-04-24T23:52:05.588Z - Started 2 cron jobs.
+2025-04-24T23:52:10.711Z - Initializing cron jobs...
+2025-04-24T23:52:10.727Z - Scheduled 'anonymizeOldAssessments' job for 03:00 UTC daily.
+2025-04-24T23:52:10.728Z - Scheduled 'calculateDailyStats' job for 00:05 UTC daily.
+2025-04-24T23:52:10.728Z - Started 2 cron jobs.
+2025-04-24T23:52:24.239Z - Initializing cron jobs...
+2025-04-24T23:52:24.257Z - Scheduled 'anonymizeOldAssessments' job for 03:00 UTC daily.
+2025-04-24T23:52:24.257Z - Scheduled 'calculateDailyStats' job for 00:05 UTC daily.
+2025-04-24T23:52:24.258Z - Started 2 cron jobs.
+2025-04-24T23:52:27.795Z - Initializing cron jobs...
+2025-04-24T23:52:27.814Z - Scheduled 'anonymizeOldAssessments' job for 03:00 UTC daily.
+2025-04-24T23:52:27.815Z - Scheduled 'calculateDailyStats' job for 00:05 UTC daily.
+2025-04-24T23:52:27.815Z - Started 2 cron jobs.
+2025-04-24T23:52:49.302Z - Initializing cron jobs...
+2025-04-24T23:52:49.318Z - Scheduled 'anonymizeOldAssessments' job for 03:00 UTC daily.
+2025-04-24T23:52:49.319Z - Scheduled 'calculateDailyStats' job for 00:05 UTC daily.
+2025-04-24T23:52:49.319Z - Started 2 cron jobs.
+2025-04-24T23:53:21.643Z - Initializing cron jobs...
+2025-04-24T23:53:21.659Z - Scheduled 'anonymizeOldAssessments' job for 03:00 UTC daily.
+2025-04-24T23:53:21.660Z - Scheduled 'calculateDailyStats' job for 00:05 UTC daily.
+2025-04-24T23:53:21.660Z - Started 2 cron jobs.
+2025-04-24T23:58:06.458Z - Initializing cron jobs...
+2025-04-24T23:58:06.473Z - Scheduled 'anonymizeOldAssessments' job for 03:00 UTC daily.
+2025-04-24T23:58:06.474Z - Scheduled 'calculateDailyStats' job for 00:05 UTC daily.
+2025-04-24T23:58:06.474Z - Started 2 cron jobs.
+2025-04-25T00:00:21.972Z - Initializing cron jobs...
+2025-04-25T00:00:21.988Z - Scheduled 'anonymizeOldAssessments' job for 03:00 UTC daily.
+2025-04-25T00:00:21.988Z - Scheduled 'calculateDailyStats' job for 00:05 UTC daily.
+2025-04-25T00:00:21.989Z - Started 2 cron jobs.
+2025-04-25T00:05:00.773Z - [Cron - Scheduled] Starting daily stats calculation task...
+2025-04-25T00:05:00.780Z - [Cron - Scheduled] Daily Stats (2025-04-24): LOW=0, MODERATE=0, HIGH=0
+2025-04-25T00:06:33.533Z - Initializing cron jobs...
+2025-04-25T00:06:33.549Z - Scheduled 'anonymizeOldAssessments' job for 03:00 UTC daily.
+2025-04-25T00:06:33.550Z - Scheduled 'calculateDailyStats' job for 00:05 UTC daily.
+2025-04-25T00:06:33.551Z - Started 2 cron jobs.
+2025-04-25T03:00:00.092Z - [Cron - Scheduled] Starting anonymization task...
+2025-04-25T03:00:00.099Z - [Cron - Scheduled] No assessments required anonymization.
+2025-04-26T00:05:00.800Z - [Cron - Scheduled] Starting daily stats calculation task...
+2025-04-26T00:05:00.810Z - [Cron - Scheduled] Daily Stats (2025-04-25): LOW=1, MODERATE=0, HIGH=0
+2025-04-26T00:40:39.979Z - Initializing cron jobs...
+2025-04-26T00:40:39.995Z - Scheduled 'anonymizeOldAssessments' job for 03:00 UTC daily.
+2025-04-26T00:40:39.996Z - Scheduled 'calculateDailyStats' job for 00:05 UTC daily.
+2025-04-26T00:40:39.997Z - Started 2 cron jobs.
+2025-04-26T00:40:49.853Z - Initializing cron jobs...
+2025-04-26T00:40:49.869Z - Scheduled 'anonymizeOldAssessments' job for 03:00 UTC daily.
+2025-04-26T00:40:49.869Z - Scheduled 'calculateDailyStats' job for 00:05 UTC daily.
+2025-04-26T00:40:49.870Z - Started 2 cron jobs.
+2025-04-26T00:41:38.750Z - Initializing cron jobs...
+2025-04-26T00:41:38.766Z - Scheduled 'anonymizeOldAssessments' job for 03:00 UTC daily.
+2025-04-26T00:41:38.766Z - Scheduled 'calculateDailyStats' job for 00:05 UTC daily.
+2025-04-26T00:41:38.767Z - Started 2 cron jobs.
+2025-04-26T00:41:59.449Z - Initializing cron jobs...
+2025-04-26T00:41:59.466Z - Scheduled 'anonymizeOldAssessments' job for 03:00 UTC daily.
+2025-04-26T00:41:59.467Z - Scheduled 'calculateDailyStats' job for 00:05 UTC daily.
+2025-04-26T00:41:59.467Z - Started 2 cron jobs.
+2025-04-26T00:46:54.066Z - Initializing cron jobs...
+2025-04-26T00:46:54.083Z - Scheduled 'anonymizeOldAssessments' job for 03:00 UTC daily.
+2025-04-26T00:46:54.084Z - Scheduled 'calculateDailyStats' job for 00:05 UTC daily.
+2025-04-26T00:46:54.084Z - Started 2 cron jobs.
+2025-04-26T00:48:04.214Z - Initializing cron jobs...
+2025-04-26T00:48:04.230Z - Scheduled 'anonymizeOldAssessments' job for 03:00 UTC daily.
+2025-04-26T00:48:04.231Z - Scheduled 'calculateDailyStats' job for 00:05 UTC daily.
+2025-04-26T00:48:04.231Z - Started 2 cron jobs.
+2025-04-26T00:52:00.583Z - Initializing cron jobs...
+2025-04-26T00:52:00.599Z - Scheduled 'anonymizeOldAssessments' job for 03:00 UTC daily.
+2025-04-26T00:52:00.600Z - Scheduled 'calculateDailyStats' job for 00:05 UTC daily.
+2025-04-26T00:52:00.601Z - Started 2 cron jobs.
+2025-04-26T02:03:25.426Z - Initializing cron jobs...
+2025-04-26T02:03:25.443Z - Scheduled 'anonymizeOldAssessments' job for 03:00 UTC daily.
+2025-04-26T02:03:25.444Z - Scheduled 'calculateDailyStats' job for 00:05 UTC daily.
+2025-04-26T02:03:25.444Z - Started 2 cron jobs.
+2025-04-26T02:05:51.272Z - Initializing cron jobs...
+2025-04-26T02:05:51.292Z - Scheduled 'anonymizeOldAssessments' job for 03:00 UTC daily.
+2025-04-26T02:05:51.293Z - Scheduled 'calculateDailyStats' job for 00:05 UTC daily.
+2025-04-26T02:05:51.293Z - Started 2 cron jobs.
+2025-04-26T02:16:18.619Z - Initializing cron jobs...
+2025-04-26T02:16:18.635Z - Scheduled 'anonymizeOldAssessments' job for 03:00 UTC daily.
+2025-04-26T02:16:18.636Z - Scheduled 'calculateDailyStats' job for 00:05 UTC daily.
+2025-04-26T02:16:18.636Z - Started 2 cron jobs.
+2025-04-26T02:17:02.121Z - Initializing cron jobs...
+2025-04-26T02:17:02.138Z - Scheduled 'anonymizeOldAssessments' job for 03:00 UTC daily.
+2025-04-26T02:17:02.139Z - Scheduled 'calculateDailyStats' job for 00:05 UTC daily.
+2025-04-26T02:17:02.139Z - Started 2 cron jobs.
+2025-04-26T03:00:00.536Z - [Cron - Scheduled] Starting anonymization task...
+2025-04-26T03:00:00.545Z - [Cron - Scheduled] No assessments required anonymization.

@@ -1,12 +1,14 @@
+
+// api/routes.js
 import express from 'express';
 import jwt from 'jsonwebtoken';
-import { User, Assessment, ChatMessage, Appointment } from './db.js';
+import { User, Assessment, ChatMessage, Appointment, sequelize } from './db.js'; // <<< Import sequelize
 import { generateO4MiniResponse } from './chatbot.js';
 import { Op, fn, col, literal } from 'sequelize';
 import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
-
+import crypto from 'crypto'; // <<< Import crypto
 
 const router = express.Router();
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -61,20 +63,26 @@ const authorizeRole = (allowedRoles) => {
 router.post('/auth/register', async (req, res, next) => {
     const { email, password } = req.body;
 
-    if (!email || !password || password.length < 6) {
-        return res.status(400).json({ message: 'Email is required and password must be at least 6 characters long.' });
+    if (!email || !password) { // Removed password length check here, model handles it
+        return res.status(400).json({ message: 'Email and password are required.' });
     }
+     // Add basic email format check (more robust validation is in the model)
+    if (!/\S+@\S+\.\S+/.test(email)) {
+        return res.status(400).json({ message: 'Invalid email format.' });
+    }
+     if (password.length < 6) {
+         return res.status(400).json({ message: 'Password must be at least 6 characters long.' });
+     }
+
 
     try {
-        const existingUser = await User.findOne({ where: { email: email } });
+        const existingUser = await User.findOne({ where: { email: email.toLowerCase() } }); // <<< Check lowercase email
         if (existingUser) {
             return res.status(409).json({ message: 'Email already in use.' }); // Conflict
         }
 
-        // Role assignment could be more complex, e.g., based on domain or invite code
-        // Defaulting to 'user' here.
         const newUser = await User.create({
-            email: email,
+            email: email, // Let hook handle lowercase
             passwordHash: password, // Let the hook handle hashing
             role: 'user' // Default role
         });
@@ -87,6 +95,7 @@ router.post('/auth/register', async (req, res, next) => {
          if (error.name === 'SequelizeValidationError') {
              return res.status(400).json({ message: 'Validation error', errors: error.errors.map(e => e.message) });
          }
+         console.error("Registration Error:", error); // Log the actual error
          next(error); // Pass other errors to the global error handler
     }
 });
@@ -100,14 +109,16 @@ router.post('/auth/login', async (req, res, next) => {
     }
 
     try {
-        const user = await User.findOne({ where: { email: email } });
+        const user = await User.findOne({ where: { email: email.toLowerCase() } }); // <<< Check lowercase email
 
         if (!user) {
+            console.log(`Login attempt failed for email: ${email.toLowerCase()} (User not found)`);
             return res.status(401).json({ message: 'Invalid credentials.' }); // Unauthorized
         }
 
         const isMatch = await user.isValidPassword(password);
         if (!isMatch) {
+             console.log(`Login attempt failed for email: ${email.toLowerCase()} (Password mismatch)`);
             return res.status(401).json({ message: 'Invalid credentials.' }); // Unauthorized
         }
 
@@ -127,6 +138,7 @@ router.post('/auth/login', async (req, res, next) => {
 
          // Exclude password hash from user object sent back
          const userResponse = { id: user.id, email: user.email, role: user.role };
+         console.log(`Login successful for email: ${email.toLowerCase()}`);
         res.json({ message: 'Login successful.', token, user: userResponse });
 
     } catch (error) {
@@ -137,7 +149,6 @@ router.post('/auth/login', async (req, res, next) => {
 // GET /auth/me (Protected)
 router.get('/auth/me', authenticateToken, (req, res) => {
     // req.user is populated by authenticateToken middleware
-    // Return user info (excluding sensitive data like passwordHash)
     res.json({
         id: req.user.id,
         email: req.user.email,
@@ -164,18 +175,19 @@ router.post('/assessments', async (req, res, next) => {
           return res.status(400).json({ message: 'Invalid riskLevel provided.' });
       }
 
-
     try {
-         // Verify userId exists if provided
+         // Verify userId exists if provided and associate
+         let userToAssociate = null;
          if (userId) {
-             const userExists = await User.findByPk(userId);
-             if (!userExists) {
-                 return res.status(400).json({ message: `User with ID ${userId} not found.` });
+             userToAssociate = await User.findByPk(userId);
+             if (!userToAssociate) {
+                 // Don't fail, just log and save anonymously if user ID from request is invalid
+                 console.warn(`User ID ${userId} provided for assessment but not found. Saving anonymously.`);
              }
          }
 
         const newAssessment = await Assessment.create({
-            userId: userId || null, // Store null if anonymous
+            userId: userToAssociate ? userToAssociate.id : null, // Store valid userId or null
             phqScore,
             gadScore,
             riskLevel,
@@ -183,15 +195,15 @@ router.post('/assessments', async (req, res, next) => {
             answers, // Stored encrypted via setter/hook
             consentGiven: true,
         });
+        console.log(`Assessment ${newAssessment.id} saved for user: ${userToAssociate ? userToAssociate.id : 'Anonymous'}`);
         res.status(201).json({ message: 'Assessment saved successfully.', assessmentId: newAssessment.id });
     } catch (error) {
         next(error);
     }
 });
 
-// GET /assessments (Protected, Pro/Admin)
+// GET /assessments (Protected, Pro/Admin - For Admin Panel)
 router.get('/assessments', authenticateToken, authorizeRole(['professional', 'admin']), async (req, res, next) => {
-    // Add filtering/pagination options
     const { limit = 20, offset = 0, riskLevel, dateFrom, dateTo, sortBy = 'createdAt', sortOrder = 'DESC' } = req.query;
     const whereClause = {};
 
@@ -199,28 +211,52 @@ router.get('/assessments', authenticateToken, authorizeRole(['professional', 'ad
         whereClause.riskLevel = riskLevel.toUpperCase();
     }
     if (dateFrom) {
-        whereClause.createdAt = { ...whereClause.createdAt, [Op.gte]: new Date(dateFrom) };
+        const startDate = new Date(dateFrom);
+        if (!isNaN(startDate)) { // Check if date is valid
+            startDate.setHours(0, 0, 0, 0);
+             whereClause.createdAt = { ...whereClause.createdAt, [Op.gte]: startDate };
+        }
     }
     if (dateTo) {
-         whereClause.createdAt = { ...whereClause.createdAt, [Op.lte]: new Date(dateTo) };
+        const endDate = new Date(dateTo);
+         if (!isNaN(endDate)) { // Check if date is valid
+            endDate.setHours(23, 59, 59, 999);
+             whereClause.createdAt = { ...whereClause.createdAt, [Op.lte]: endDate };
+        }
     }
 
      const validSortOrders = ['ASC', 'DESC'];
      const order = validSortOrders.includes(sortOrder.toUpperCase()) ? sortOrder.toUpperCase() : 'DESC';
-     const validSortBy = ['createdAt', 'riskLevel', 'phqScore', 'gadScore']; // Add other valid fields
+     const validSortBy = ['createdAt', 'riskLevel', 'phqScore', 'gadScore'];
      const sortField = validSortBy.includes(sortBy) ? sortBy : 'createdAt';
-
 
     try {
         const { count, rows } = await Assessment.findAndCountAll({
             where: whereClause,
-            include: [{ model: User, attributes: ['id', 'email'] }], // Include basic user info
-            limit: parseInt(limit, 10),
-            offset: parseInt(offset, 10),
+            include: [{ model: User, attributes: ['id', 'email'] }],
+            limit: parseInt(limit, 10) || 20,
+            offset: parseInt(offset, 10) || 0,
             order: [[sortField, order]],
-            attributes: { exclude: ['answers'] } // Exclude raw answers from list view
+            attributes: { exclude: ['answers', 'anonymizedAt'] } // Exclude sensitive/internal fields
         });
-        res.json({ totalItems: count, assessments: rows, limit, offset });
+        res.json({ totalItems: count, assessments: rows }); // <<< Removed limit/offset from response body
+    } catch (error) {
+        next(error);
+    }
+});
+
+// GET /assessments/history (Protected, User) - NEW ROUTE
+router.get('/assessments/history', authenticateToken, async (req, res, next) => {
+    const userId = req.user.id; // Get user ID from authenticated token
+
+    try {
+        const history = await Assessment.findAll({
+            where: { userId: userId },
+            attributes: ['id', 'phqScore', 'gadScore', 'riskLevel', 'isSuicidalRisk', 'createdAt'], // Select only needed fields
+            order: [['createdAt', 'DESC']],
+            limit: 50 // Limit history length if needed
+        });
+        res.json(history);
     } catch (error) {
         next(error);
     }
@@ -231,25 +267,38 @@ router.get('/assessments', authenticateToken, authorizeRole(['professional', 'ad
 
 // POST /chat
 router.post('/chat', async (req, res, next) => {
-    const { message, userId, sessionId } = req.body; // sessionId could be managed client-side or generated here
+    const { message, userId, sessionId } = req.body;
 
     if (!message) {
         return res.status(400).json({ message: 'Message content is required.' });
     }
 
-     // Simple session management: Use provided sessionId or create a new one
-     const currentSessionId = sessionId || crypto.randomUUID(); // Using crypto for UUID
+     const currentSessionId = sessionId || crypto.randomUUID();
 
     try {
-         // Verify userId exists if provided
          let user = null;
+         let assessmentContext = null;
+
+         // 1. Fetch User and Latest Assessment if userId is provided
          if (userId) {
              user = await User.findByPk(userId);
-             // Decide if chat should fail if user not found, or proceed anonymously
-             // if (!user) return res.status(400).json({ message: `User with ID ${userId} not found.` });
+             if (user) {
+                 const latestAssessment = await Assessment.findOne({
+                     where: { userId: userId },
+                     order: [['createdAt', 'DESC']],
+                     attributes: ['phqScore', 'gadScore', 'riskLevel', 'createdAt'] // Fetch relevant fields
+                 });
+                 if (latestAssessment) {
+                     const assessmentDate = new Date(latestAssessment.createdAt).toLocaleDateString('pt-BR');
+                     assessmentContext = `Contexto da última autoavaliação do usuário (em ${assessmentDate}): Pontuação PHQ-9 (Depressão) = ${latestAssessment.phqScore}, Pontuação GAD-7 (Ansiedade) = ${latestAssessment.gadScore}, Nível de Risco Geral = ${latestAssessment.riskLevel}. Use este contexto para adaptar suas respostas, se relevante, mas NÃO mencione diretamente as pontuações ou o nível de risco, a menos que o usuário pergunte especificamente sobre seus resultados. Foque em fornecer apoio e informação geral baseada no contexto.`;
+                     console.log(`[Chat Context] User ${userId}, Session ${currentSessionId}: ${assessmentContext}`);
+                 }
+             } else {
+                  console.warn(`[Chat] User ID ${userId} provided but not found. Proceeding anonymously for session ${currentSessionId}.`);
+             }
          }
 
-        // 1. Save user message (optional, but good for history)
+        // 2. Save user message
         await ChatMessage.create({
             sessionId: currentSessionId,
             userId: user ? user.id : null,
@@ -257,42 +306,49 @@ router.post('/chat', async (req, res, next) => {
             content: message,
         });
 
-        // 2. Get AI response (Add context if needed)
-        // Fetch recent messages for context (example: last 5 messages)
+        // 3. Prepare conversation history including context
         const recentMessages = await ChatMessage.findAll({
              where: { sessionId: currentSessionId },
              order: [['createdAt', 'DESC']],
-             limit: 5 // Adjust context window size
+             limit: 10 // Increased context slightly
          });
-         // Format for OpenAI API (ensure latest message is last)
         const conversationHistory = recentMessages.reverse().map(msg => ({
              role: msg.role,
              content: msg.content
         }));
-        // Add current user message if not already included (edge case on first message)
-        if (!conversationHistory.some(m => m.role === 'user' && m.content === message)) {
-             conversationHistory.push({ role: 'user', content: message });
+
+         // Ensure current user message is in history (if not already saved and retrieved)
+         if (!recentMessages.some(m => m.role === 'user' && m.content === message)) {
+              conversationHistory.push({ role: 'user', content: message });
+         }
+
+
+        // Prepend System Context if available
+        const messagesForApi = [];
+        if (assessmentContext) {
+            messagesForApi.push({ role: 'system', content: assessmentContext });
         }
+        messagesForApi.push(...conversationHistory);
 
 
-        const botReplyContent = await generateO4MiniResponse(conversationHistory); // Pass history
+        // 4. Get AI response
+        const botReplyContent = await generateO4MiniResponse(messagesForApi);
 
-        // 3. Save AI response
+        // 5. Save AI response
         await ChatMessage.create({
             sessionId: currentSessionId,
-             userId: null, // Or assign to a specific Bot User ID if you have one
+            userId: null,
             role: 'assistant',
             content: botReplyContent,
         });
 
-        // 4. Send response back to client
+        // 6. Send response back to client
         res.json({ reply: botReplyContent, sessionId: currentSessionId });
 
     } catch (error) {
-        console.error("Chat endpoint error:", error);
-        if (error.message && error.message.includes('OpenAI API request failed')) {
-             // Handle specific OpenAI errors if needed
-             return res.status(503).json({ message: 'AI assistant is currently unavailable. Please try again later.' });
+        console.error(`[Chat Error] Session ${currentSessionId}:`, error);
+        if (error.message && error.message.toLowerCase().includes('openai') || error.message.includes('AI assistant')) {
+             return res.status(503).json({ message: 'Desculpe, o assistente de IA está temporariamente indisponível. Por favor, tente novamente mais tarde.' });
         }
         next(error); // Pass to global handler
     }
@@ -306,8 +362,16 @@ router.post('/appointments', async (req, res, next) => {
     const { name, contact, message } = req.body;
 
     if (!name || !contact) {
-        return res.status(400).json({ message: 'Name and contact information are required.' });
+        return res.status(400).json({ message: 'Nome e informação de contato são obrigatórios.' });
     }
+     // Basic validation examples (can be more complex)
+     if (typeof name !== 'string' || name.length < 2) {
+         return res.status(400).json({ message: 'Nome inválido.' });
+     }
+      if (typeof contact !== 'string' || contact.length < 5) { // Very basic check
+         return res.status(400).json({ message: 'Informação de contato inválida.' });
+     }
+
 
     try {
         const newAppointment = await Appointment.create({
@@ -316,13 +380,14 @@ router.post('/appointments', async (req, res, next) => {
             message: message || null, // Encrypted by setter
             status: 'pending',
         });
-        res.status(201).json({ message: 'Appointment request received successfully.', appointmentId: newAppointment.id });
+        console.log(`Appointment request ${newAppointment.id} created for ${name}`);
+        res.status(201).json({ message: 'Solicitação de agendamento recebida com sucesso.', appointmentId: newAppointment.id });
     } catch (error) {
         next(error);
     }
 });
 
-// GET /appointments (Protected, Pro)
+// GET /appointments (Protected, Pro/Admin)
 router.get('/appointments', authenticateToken, authorizeRole(['professional', 'admin']), async (req, res, next) => {
      const { limit = 20, offset = 0, status, sortBy = 'createdAt', sortOrder = 'DESC' } = req.query;
      const whereClause = {};
@@ -334,57 +399,78 @@ router.get('/appointments', authenticateToken, authorizeRole(['professional', 'a
 
        const validSortOrders = ['ASC', 'DESC'];
        const order = validSortOrders.includes(sortOrder.toUpperCase()) ? sortOrder.toUpperCase() : 'DESC';
-       const validSortBy = ['createdAt', 'status', 'patientName']; // Add other valid fields
+       const validSortBy = ['createdAt', 'status', 'patientName', 'updatedAt']; // Added updatedAt
        const sortField = validSortBy.includes(sortBy) ? sortBy : 'createdAt';
 
     try {
          const { count, rows } = await Appointment.findAndCountAll({
               where: whereClause,
-              // Optionally include assigned professional info
-               // include: [{ model: User, as: 'Professional', attributes: ['id', 'email'] }],
-              limit: parseInt(limit, 10),
-              offset: parseInt(offset, 10),
+              limit: parseInt(limit, 10) || 20,
+              offset: parseInt(offset, 10) || 0,
               order: [[sortField, order]],
+              // Ensure contact/message are included (getters will decrypt)
+              attributes: { include: ['patientContact', 'message'] }
          });
-        // Note: patientContact and message will be automatically decrypted by getters when accessed
-        res.json({ totalItems: count, appointments: rows, limit, offset });
+        res.json({ totalItems: count, appointments: rows });
     } catch (error) {
         next(error);
     }
 });
 
-// PUT /appointments/:id (Protected, Pro)
+// PUT /appointments/:id (Protected, Pro/Admin)
 router.put('/appointments/:id', authenticateToken, authorizeRole(['professional', 'admin']), async (req, res, next) => {
     const { id } = req.params;
-    const { status, professionalId, dateTime } = req.body; // Allow updating status, assigning pro, setting time
+    const { status, professionalId, dateTime } = req.body;
 
      const validStatuses = ['pending', 'confirmed', 'cancelled', 'completed'];
      if (status && !validStatuses.includes(status)) {
-         return res.status(400).json({ message: 'Invalid status value.' });
+         return res.status(400).json({ message: 'Valor de status inválido.' });
      }
 
     try {
         const appointment = await Appointment.findByPk(id);
         if (!appointment) {
-            return res.status(404).json({ message: 'Appointment not found.' });
+            return res.status(404).json({ message: 'Agendamento não encontrado.' });
         }
 
         const updateData = {};
-        if (status) updateData.status = status;
-        if (professionalId !== undefined) updateData.professionalId = professionalId; // Allow setting null
-        if (dateTime !== undefined) updateData.dateTime = dateTime; // Allow setting null
+        let changed = false;
 
-         // Optional: Check if professionalId exists if provided
-         if (professionalId) {
-            const professionalExists = await User.findOne({ where: { id: professionalId, role: 'professional' } });
-            if (!professionalExists) {
-                 return res.status(400).json({ message: `Professional user with ID ${professionalId} not found.` });
-            }
+        if (status && appointment.status !== status) {
+             updateData.status = status;
+             changed = true;
+        }
+        if (professionalId !== undefined && appointment.professionalId !== professionalId) {
+             updateData.professionalId = professionalId;
+             changed = true;
+             // Optional: Check if professionalId exists if provided and not null
+             if (professionalId) {
+                 const professionalExists = await User.findOne({ where: { id: professionalId, role: { [Op.in]: ['professional', 'admin'] } } }); // Allow admin too
+                 if (!professionalExists) {
+                      return res.status(400).json({ message: `Usuário profissional com ID ${professionalId} não encontrado.` });
+                 }
+             }
+        }
+        if (dateTime !== undefined && appointment.dateTime !== dateTime) {
+             // Basic date validation
+             const newDateTime = dateTime ? new Date(dateTime) : null;
+             if (dateTime && isNaN(newDateTime)) {
+                 return res.status(400).json({ message: 'Formato de data/hora inválido.' });
+             }
+             updateData.dateTime = newDateTime;
+             changed = true;
         }
 
 
+        if (!changed) {
+             return res.status(200).json({ message: 'Nenhuma alteração detectada.', appointment });
+         }
+
         await appointment.update(updateData);
-        res.json({ message: 'Appointment updated successfully.', appointment });
+         // Fetch again to get potentially decrypted values if they were updated
+        const updatedAppointment = await Appointment.findByPk(id);
+        console.log(`Appointment ${id} updated by user ${req.user.id}. New status: ${updatedAppointment.status}`);
+        res.json({ message: 'Agendamento atualizado com sucesso.', appointment: updatedAppointment });
 
     } catch (error) {
         next(error);
@@ -396,47 +482,39 @@ router.put('/appointments/:id', authenticateToken, authorizeRole(['professional'
 // GET /stats (Protected, Pro/Admin)
 router.get('/stats', authenticateToken, authorizeRole(['professional', 'admin']), async (req, res, next) => {
     try {
-        // Example Stats:
-        // 1. Counts per risk level today
         const today = new Date();
-        today.setHours(0, 0, 0, 0);
+        const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 0, 0, 0, 0);
 
         const riskCountsToday = await Assessment.findAll({
             attributes: ['riskLevel', [fn('COUNT', col('id')), 'count']],
             where: {
-                createdAt: {
-                    [Op.gte]: today,
-                }
+                createdAt: { [Op.gte]: todayStart }
             },
             group: ['riskLevel'],
-            raw: true, // Get plain objects
+            raw: true,
         });
 
         const highRiskToday = riskCountsToday.find(r => r.riskLevel === 'HIGH')?.count || 0;
 
-         // 2. Total assessments this month
         const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
         const totalAssessmentsMonth = await Assessment.count({
-            where: {
-                createdAt: { [Op.gte]: startOfMonth }
-            }
+            where: { createdAt: { [Op.gte]: startOfMonth } }
         });
 
-         // 3. Pending contact requests
         const newContactsPending = await Appointment.count({
              where: { status: 'pending' }
         });
 
-        // Format results
         const stats = {
-            highRiskToday: parseInt(highRiskToday, 10), // Ensure integer
+            highRiskToday: parseInt(highRiskToday, 10),
             totalAssessmentsMonth: totalAssessmentsMonth,
             newContactsPending: newContactsPending,
-            riskCountsToday: riskCountsToday.reduce((acc, curr) => {
-                 acc[curr.riskLevel] = parseInt(curr.count, 10);
-                 return acc;
-             }, { HIGH: 0, MODERATE: 0, LOW: 0 }), // Ensure all levels exist
-            // Add more stats as needed (e.g., trends over time)
+            // Ensure all levels exist in the output object
+             riskCountsToday: {
+                HIGH: parseInt(riskCountsToday.find(r => r.riskLevel === 'HIGH')?.count || 0, 10),
+                MODERATE: parseInt(riskCountsToday.find(r => r.riskLevel === 'MODERATE')?.count || 0, 10),
+                LOW: parseInt(riskCountsToday.find(r => r.riskLevel === 'LOW')?.count || 0, 10),
+            },
         };
 
         res.json(stats);
@@ -452,7 +530,7 @@ router.get('/stats', authenticateToken, authorizeRole(['professional', 'admin'])
 router.get('/admin/users', authenticateToken, authorizeRole(['admin']), async (req, res, next) => {
     try {
         const users = await User.findAll({
-            attributes: ['id', 'email', 'role', 'createdAt', 'updatedAt'], // Exclude passwordHash
+            attributes: ['id', 'email', 'role', 'createdAt', 'updatedAt'],
             order: [['createdAt', 'DESC']],
         });
         res.json(users);
@@ -464,27 +542,32 @@ router.get('/admin/users', authenticateToken, authorizeRole(['admin']), async (r
 // PUT /admin/users/:id (Protected, Admin)
 router.put('/admin/users/:id', authenticateToken, authorizeRole(['admin']), async (req, res, next) => {
     const { id } = req.params;
-    const { role } = req.body; // Only allow updating role for now
+    const { role } = req.body;
 
     if (!role || !['user', 'professional', 'admin'].includes(role)) {
-        return res.status(400).json({ message: 'Invalid role provided.' });
+        return res.status(400).json({ message: 'Função inválida fornecida.' });
     }
 
      if (parseInt(id, 10) === req.user.id && role !== 'admin') {
-         return res.status(400).json({ message: 'Admin cannot remove their own admin role.' });
+         return res.status(400).json({ message: 'Administrador não pode remover sua própria função de admin.' });
      }
 
     try {
         const user = await User.findByPk(id);
         if (!user) {
-            return res.status(404).json({ message: 'User not found.' });
+            return res.status(404).json({ message: 'Usuário não encontrado.' });
+        }
+
+        if (user.role === role) {
+            return res.status(200).json({ message: 'Nenhuma alteração na função.', user: { id: user.id, email: user.email, role: user.role } });
         }
 
         user.role = role;
         await user.save();
+        console.log(`User ${id} role updated to ${role} by admin ${req.user.id}`);
 
         const userResponse = { id: user.id, email: user.email, role: user.role };
-        res.json({ message: 'User role updated successfully.', user: userResponse });
+        res.json({ message: 'Função do usuário atualizada com sucesso.', user: userResponse });
     } catch (error) {
         next(error);
     }
@@ -493,80 +576,86 @@ router.put('/admin/users/:id', authenticateToken, authorizeRole(['admin']), asyn
 // DELETE /admin/users/:id (Protected, Admin)
 router.delete('/admin/users/:id', authenticateToken, authorizeRole(['admin']), async (req, res, next) => {
     const { id } = req.params;
+    const numericId = parseInt(id, 10);
 
-     // Prevent admin from deleting themselves
-    if (parseInt(id, 10) === req.user.id) {
-        return res.status(400).json({ message: "Admin cannot delete their own account." });
+    if (isNaN(numericId)) {
+        return res.status(400).json({ message: "ID de usuário inválido." });
+    }
+
+    if (numericId === req.user.id) {
+        return res.status(400).json({ message: "Administrador não pode excluir sua própria conta." });
     }
 
     try {
-        const user = await User.findByPk(id);
+        const user = await User.findByPk(numericId);
         if (!user) {
-            return res.status(404).json({ message: 'User not found.' });
+            return res.status(404).json({ message: 'Usuário não encontrado.' });
         }
 
+        const userEmail = user.email; // Get email before destroying
         await user.destroy(); // This will trigger onDelete:'SET NULL' in related tables
-        res.status(200).json({ message: 'User deleted successfully.' }); // OK or No Content (204)
+        console.log(`User ${userEmail} (ID: ${numericId}) deleted by admin ${req.user.id}`);
+        res.status(200).json({ message: 'Usuário excluído com sucesso.' });
 
     } catch (error) {
         next(error);
     }
 });
 
-// POST /admin/backup (Protected, Admin) - Basic example: Copy SQLite file
+// POST /admin/backup (Protected, Admin)
 router.post('/admin/backup', authenticateToken, authorizeRole(['admin']), async (req, res, next) => {
-     const dbPath = path.resolve(__dirname, process.env.DATABASE_URL.substring(7)); // Assuming 'sqlite:./api/database.sqlite'
+     const dbUrl = process.env.DATABASE_URL;
+     if (!dbUrl || !dbUrl.startsWith('sqlite:')) {
+         return res.status(500).json({ message: 'Backup suportado apenas para configuração SQLite.' });
+     }
+     const dbPath = path.resolve(__dirname, dbUrl.substring(7));
      const backupDir = path.resolve(__dirname, 'backups');
      const backupFileName = `backup-${new Date().toISOString().replace(/[:.]/g, '-')}.sqlite`;
      const backupPath = path.join(backupDir, backupFileName);
 
      try {
-         await fs.mkdir(backupDir, { recursive: true }); // Ensure backup directory exists
+         await fs.mkdir(backupDir, { recursive: true });
          await fs.copyFile(dbPath, backupPath);
-         console.log(`Database backup created at: ${backupPath}`);
-         res.status(200).json({ message: `Backup created successfully: ${backupFileName}` });
+         console.log(`Database backup created at: ${backupPath} by admin ${req.user.id}`);
+         res.status(200).json({ message: `Backup criado com sucesso: ${backupFileName}` });
      } catch (error) {
          console.error('Backup failed:', error);
-         next(new Error('Database backup failed. Check server logs.'));
+         next(new Error('Falha no backup do banco de dados. Verifique os logs do servidor.'));
      }
 });
 
-// POST /admin/anonymize (Protected, Admin) - Triggers the cron job logic manually
+// POST /admin/anonymize (Protected, Admin)
 router.post('/admin/anonymize', authenticateToken, authorizeRole(['admin']), async (req, res, next) => {
      try {
-         // Import the function dynamically to avoid circular dependencies if cron imports db
          const { anonymizeOldAssessments } = await import('./cron.js');
-         console.log("Manually triggering anonymization task...");
-         // Run the task immediately, don't wait for schedule
-         await anonymizeOldAssessments(true); // Pass a flag to indicate manual trigger if needed
-         res.status(200).json({ message: 'Anonymization task triggered successfully.' });
+         console.log(`Manually triggering anonymization task by admin ${req.user.id}...`);
+         await anonymizeOldAssessments(true); // Pass flag indicating manual trigger
+         res.status(200).json({ message: 'Tarefa de anonimização disparada com sucesso.' });
      } catch (error) {
          console.error('Manual anonymization trigger failed:', error);
-         next(new Error('Failed to trigger anonymization task.'));
+         next(new Error('Falha ao disparar tarefa de anonimização.'));
      }
 });
 
-// GET /admin/logs (Protected, Admin) - Basic example: Read last N lines from a log file
+// GET /admin/logs (Protected, Admin)
 router.get('/admin/logs', authenticateToken, authorizeRole(['admin']), async (req, res, next) => {
      const logLinesLimit = parseInt(req.query.limit || 100, 10);
 
      try {
-         // Check if log file exists
           try {
              await fs.access(LOG_FILE_PATH);
          } catch (e) {
-              // File doesn't exist
-              return res.json({ logs: ["Log file not found or not created yet."] });
+              console.log("Log file not found, returning empty array.");
+              return res.json({ logs: [] }); // Return empty array instead of message
           }
 
-
          const data = await fs.readFile(LOG_FILE_PATH, 'utf-8');
-         const lines = data.split('\n').filter(line => line.trim() !== ''); // Split and remove empty lines
-         const recentLines = lines.slice(-logLinesLimit); // Get the last N lines
+         const lines = data.split('\n').filter(line => line.trim() !== '');
+         const recentLines = lines.slice(-logLinesLimit);
          res.json({ logs: recentLines });
      } catch (error) {
          console.error('Error reading log file:', error);
-         next(new Error('Failed to retrieve logs.'));
+         next(new Error('Falha ao recuperar logs.'));
      }
 });
 

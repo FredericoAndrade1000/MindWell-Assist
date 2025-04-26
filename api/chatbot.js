@@ -1,3 +1,4 @@
+// api/chatbot.js
 import OpenAI from 'openai';
 import dotenv from 'dotenv';
 import path from 'path';
@@ -23,84 +24,75 @@ if (OPENAI_API_KEY) {
 }
 
 // Define the Bot's Persona and Instructions
+// (The context will be prepended dynamically in routes.js)
 const BOT_INSTRUCTIONS = `
-You are 'MindGuide', a compassionate and supportive AI assistant focused on mental well-being.
-Your primary role is to offer a listening ear, provide general information about mental health topics (like stress, anxiety, low mood), and explain how the self-assessment questionnaires (PHQ-9 for depression, GAD-7 for anxiety) work.
-Encourage users to take the assessment if they express concerns related to mood or anxiety.
-If a user's message indicates immediate distress or mentions self-harm, prioritize responding with empathy and immediately suggest contacting emergency services or a crisis hotline (provide generic examples like 'emergency services in your area' or 'a mental health crisis line') and gently guide them away from continuing the chat for crisis support.
-You must not provide medical diagnoses, therapy, or specific treatment plans. Offer supportive statements and general information only.
-Keep responses concise (under 150 words ideally), empathetic, and helpful.
-Maintain a calm, understanding, and non-judgmental tone.
-Do not ask for Personally Identifiable Information (PII).
-If asked about topics outside mental well-being or the website's function, politely steer the conversation back or state you cannot help with that topic.
+Você é 'MindGuide', um assistente de IA compassivo e solidário focado no bem-estar mental.
+Sua função principal é oferecer um ouvido atento, fornecer informações gerais sobre tópicos de saúde mental (como estresse, ansiedade, baixo humor) e explicar como funcionam os questionários de autoavaliação (PHQ-9 para depressão, GAD-7 para ansiedade).
+Incentive os usuários a fazer a avaliação se expressarem preocupações relacionadas ao humor ou ansiedade.
+Se a mensagem de um usuário indicar sofrimento imediato ou mencionar automutilação, priorize responder com empatia e sugerir imediatamente o contato com serviços de emergência ou uma linha direta de crise (forneça exemplos genéricos como 'serviços de emergência em sua área' ou 'uma linha de crise de saúde mental como o CVV no Brasil, ligue 188') e gentilmente o afaste de continuar o chat para suporte em crise.
+Você não deve fornecer diagnósticos médicos, terapia ou planos de tratamento específicos. Ofereça apenas declarações de apoio e informações gerais.
+Mantenha as respostas concisas (idealmente com menos de 150 palavras), empáticas e úteis.
+Mantenha um tom calmo, compreensivo e sem julgamentos.
+Não peça Informações de Identificação Pessoal (PII).
+Se perguntado sobre tópicos fora do bem-estar mental ou da função do site, educadamente direcione a conversa de volta ou declare que não pode ajudar com esse tópico.
+Se houver uma mensagem de sistema com 'Contexto da última autoavaliação', use essa informação para entender melhor o estado recente do usuário, mas NÃO mencione os scores ou nível de risco diretamente, a menos que o usuário pergunte sobre seus resultados. Adapte o tom e as sugestões gerais com base nesse contexto. Por exemplo, se o risco for alto, seja extra cuidadoso e reforce a sugestão de buscar ajuda profissional se apropriado.
 `;
 
 
 /**
  * Generates a response using the OpenAI o4-mini model.
- * @param {Array<{role: 'user' | 'assistant' | 'system', content: string}>} conversationHistory - The conversation history, including the latest user message.
+ * @param {Array<{role: 'user' | 'assistant' | 'system', content: string}>} conversationHistoryWithContext - The conversation history, potentially including a prepended system message with assessment context.
  * @param {string} reasoningEffort - The reasoning effort parameter for the API ('auto', 'low', 'high'). Defaults to 'auto'.
  * @returns {Promise<string>} The generated response text.
  * @throws {Error} If the OpenAI API request fails or the API key is missing.
  */
-const generateO4MiniResponse = async (conversationHistory, reasoningEffort = 'auto') => {
+const generateO4MiniResponse = async (conversationHistoryWithContext, reasoningEffort = 'auto') => {
     if (!openai) {
          console.error("OpenAI client not initialized. Check API Key.");
-         // Fallback response or throw error
-         return "I apologize, but I'm currently unable to process requests. My connection to the AI service is unavailable.";
-         // Or: throw new Error("OpenAI client not initialized. API Key might be missing.");
+         return "Peço desculpas, mas não consigo processar solicitações no momento. Minha conexão com o serviço de IA está indisponível.";
     }
 
-    if (!conversationHistory || conversationHistory.length === 0) {
+    if (!conversationHistoryWithContext || conversationHistoryWithContext.length === 0) {
         throw new Error("Conversation history cannot be empty.");
     }
 
-    // Prepare messages for the API, including the system prompt
+    // Prepare messages for the API, including the main system prompt and the dynamic context/history
     const messages = [
-        { role: "system", content: BOT_INSTRUCTIONS },
-        ...conversationHistory // Spread the existing conversation history
+        { role: "system", content: BOT_INSTRUCTIONS }, // Main instructions
+        ...conversationHistoryWithContext // Spread the dynamic context and history passed from routes.js
     ];
 
-    console.log("Sending to OpenAI:", JSON.stringify(messages, null, 2)); // Log request payload for debugging
+    // Log the final payload being sent (excluding API key)
+    console.log("Sending to OpenAI:", JSON.stringify(messages.map(m => ({ role: m.role, content: m.content.substring(0, 100) + (m.content.length > 100 ? '...' : '') })), null, 2)); // Log truncated content
 
     try {
         const completion = await openai.chat.completions.create({
-            model: "o4-mini", // Use o4-mini as specified
+            model: "o4-mini",
             messages: messages,
-            temperature: 0.7, // Adjust temperature for creativity vs. predictability
-            max_tokens: 200, // Limit response length
-            // Pass the reasoning_effort parameter as an extra body parameter
-            extra_body: {
-                reasoning_effort: reasoningEffort
-            }
+            max_completion_tokens: 1000,
         });
 
-        console.log("Received from OpenAI:", JSON.stringify(completion, null, 2)); // Log response for debugging
-
-
-        // Extract the response content
         const replyContent = completion.choices[0]?.message?.content?.trim();
 
         if (!replyContent) {
             console.error("OpenAI response missing content:", completion);
-            throw new Error("Received an empty response from the AI assistant.");
+            return "Recebi uma resposta vazia do assistente. Pode tentar reformular sua pergunta?"; // More user-friendly empty response
         }
 
         return replyContent;
 
     } catch (error) {
-        console.error("OpenAI API request failed:", error.response ? error.response.data : error.message);
-         // Provide a more specific error message if possible
-         let errorMessage = "An error occurred while communicating with the AI assistant.";
+        console.error("OpenAI API request failed:", error.response ? JSON.stringify(error.response.data, null, 2) : error.message);
+         let errorMessage = "Ocorreu um erro ao comunicar com o assistente de IA.";
          if (error.response?.status === 401) {
-             errorMessage = "AI assistant authentication failed. Please check the API key.";
+             errorMessage = "Falha na autenticação com o assistente de IA. Verifique a configuração.";
          } else if (error.response?.status === 429) {
-             errorMessage = "AI assistant is currently experiencing high traffic. Please try again shortly.";
-         } else if (error.message) {
-             // Include OpenAI's error message if available and seems safe to expose
-              errorMessage = `AI assistant error: ${error.message}`;
+             errorMessage = "O assistente de IA está sobrecarregado no momento. Por favor, tente novamente em breve.";
+         } else if (error.message?.includes('insufficient_quota')) {
+             errorMessage = "A cota de uso do assistente de IA foi excedida.";
          }
-        throw new Error(errorMessage); // Re-throw a potentially more user-friendly error
+        // Don't throw here, return the error message to the user
+        return errorMessage;
     }
 };
 

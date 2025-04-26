@@ -1,10 +1,16 @@
+// api/db.js
+// (Nenhuma mudança necessária neste arquivo em relação à versão fornecida,
+// ele já suporta userId anulável e tem os campos necessários.
+// Apenas garanta que você tem a versão mais recente que inclui
+// userId, consentGiven, e relacionamentos.)
+
 import { Sequelize, DataTypes, Model } from 'sequelize';
 import bcrypt from 'bcryptjs';
 import CryptoJS from 'crypto-js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
-import crypto from 'crypto';
+import crypto from 'crypto'; // <<< Ensure crypto is imported if using UUID
 
 // Load environment variables relative to the project root
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -43,17 +49,26 @@ const decrypt = (encryptedText) => {
     try {
         const parts = encryptedText.split(':');
         if (parts.length !== 2) {
-            console.error("Decryption failed: Invalid format (missing IV)");
-            // Handle this case - maybe return null or throw a specific error
+            console.warn("Decryption notice: Input format might be legacy (missing IV). Attempting legacy decryption.", encryptedText); // Changed to warn
              // Attempting legacy decryption if no IV present (use with caution)
-             const decryptedLegacy = CryptoJS.AES.decrypt(encryptedText, encryptionKeyHex, {
-                 mode: CryptoJS.mode.CBC, // Assuming legacy used CBC
-                 padding: CryptoJS.pad.Pkcs7
-             });
-             const originalTextLegacy = decryptedLegacy.toString(CryptoJS.enc.Utf8);
-             if (originalTextLegacy) return originalTextLegacy; // Return if decryption worked
-
-            return null; // Return null if format is wrong and legacy fails
+             try {
+                 const decryptedLegacy = CryptoJS.AES.decrypt(encryptedText, encryptionKeyHex, {
+                     mode: CryptoJS.mode.CBC, // Assuming legacy used CBC
+                     padding: CryptoJS.pad.Pkcs7
+                 });
+                 const originalTextLegacy = decryptedLegacy.toString(CryptoJS.enc.Utf8);
+                  // Basic check if decryption seems plausible (avoids returning garbage)
+                 if (originalTextLegacy && originalTextLegacy.length > 0 && !originalTextLegacy.includes('�')) {
+                    console.warn("Decryption successful using legacy method for:", encryptedText.substring(0, 10) + '...');
+                    return originalTextLegacy;
+                } else {
+                    console.error("Decryption failed: Legacy decryption resulted in invalid UTF8 or empty string.");
+                     return null;
+                }
+             } catch (legacyError) {
+                 console.error("Decryption failed: Invalid format (missing IV) and legacy decryption attempt failed.", legacyError);
+                 return null; // Return null if format is wrong and legacy fails
+             }
         }
         const iv = CryptoJS.enc.Hex.parse(parts[0]);
         const ciphertext = parts[1];
@@ -62,12 +77,15 @@ const decrypt = (encryptedText) => {
             mode: CryptoJS.mode.CBC,
             padding: CryptoJS.pad.Pkcs7
         });
-        return decrypted.toString(CryptoJS.enc.Utf8);
+        const originalText = decrypted.toString(CryptoJS.enc.Utf8);
+         if (!originalText && encryptedText.length > 5) { // Check if decryption resulted in empty string for non-trivial input
+            console.error("Decryption failed: Resulted in empty string. Check key or data corruption for:", encryptedText.substring(0, 10) + '...');
+            return null;
+         }
+        return originalText;
     } catch (error) {
          // This might happen if the key is wrong or data is corrupted
         console.error("Decryption failed:", error);
-        // Depending on the field, returning null or a placeholder might be appropriate
-        // For sensitive fields like email, failing might be safer than returning corrupted data.
         return null; // Or throw new Error("Decryption failed");
     }
 };
@@ -78,22 +96,16 @@ let sequelizeInstance;
 
 const getSequelizeInstance = () => {
     if (!sequelizeInstance) {
-        // --- Simpler Path Resolution ---
-        // Define the desired filename for the SQLite database.
         const dbFilename = 'database.sqlite';
-        // Resolve the absolute path for the database file within the same directory as this script (api/db.js).
         const dbPath = path.resolve(__dirname, dbFilename);
-        // Log the resolved path for debugging
         console.log(`[DB] Resolved SQLite path: ${dbPath}`);
-        // --- End Simpler Path Resolution ---
 
-        sequelizeInstance = new Sequelize(DATABASE_URL, { // Pass the original URL (might be used for dialect detection etc.)
-            dialect: 'sqlite', // Explicitly set dialect
-            storage: dbPath, // Use the explicitly resolved absolute path
+        sequelizeInstance = new Sequelize(DATABASE_URL, {
+            dialect: 'sqlite',
+            storage: dbPath,
             logging: process.env.NODE_ENV === 'development' ? console.log : false, // Log SQL in dev
             define: {
-                // Define global model options if needed
-                timestamps: true, // Automatically add createdAt and updatedAt
+                timestamps: true,
             }
         });
     }
@@ -141,6 +153,11 @@ User.init({
     sequelize,
     modelName: 'User',
     hooks: {
+        beforeValidate: (user, options) => {
+            if (user.email) {
+                user.email = user.email.toLowerCase(); // Ensure email is lowercase before saving/validating
+            }
+        },
         beforeCreate: async (user) => {
             if (user.passwordHash) {
                 user.passwordHash = await bcrypt.hash(user.passwordHash, 10);
@@ -203,13 +220,19 @@ Assessment.init({
              try {
                  return decrypted ? JSON.parse(decrypted) : null;
              } catch (e) {
-                 console.error("Failed to parse decrypted answers JSON:", e);
+                 console.error("Failed to parse decrypted answers JSON:", e, "Raw decrypted:", decrypted); // Log raw decrypted value on error
                  return null; // Return null if JSON parsing fails
              }
         },
         set(value) {
              if (value) {
-                 this.setDataValue('answers', encrypt(JSON.stringify(value)));
+                 try {
+                    const stringified = JSON.stringify(value);
+                    this.setDataValue('answers', encrypt(stringified));
+                 } catch (e) {
+                    console.error("Failed to stringify answers JSON:", e);
+                    this.setDataValue('answers', null); // Set null if stringification fails
+                 }
              } else {
                  this.setDataValue('answers', null);
              }
@@ -219,6 +242,10 @@ Assessment.init({
         type: DataTypes.BOOLEAN,
         allowNull: false,
         defaultValue: false,
+    },
+    anonymizedAt: { // Optional: Timestamp for when anonymization occurred
+        type: DataTypes.DATE,
+        allowNull: true,
     }
 }, {
     sequelize,
@@ -248,7 +275,7 @@ ChatMessage.init({
         onUpdate: 'CASCADE',
     },
     role: {
-        type: DataTypes.ENUM('user', 'assistant'),
+        type: DataTypes.ENUM('user', 'assistant', 'system'), // Added 'system' role
         allowNull: false,
     },
     content: { // Consider encrypting if chat content is highly sensitive
@@ -296,6 +323,10 @@ Appointment.init({
             return decrypt(rawValue);
         },
         set(value) {
+             if (!value) {
+                this.setDataValue('patientContact', null); // Handle null/empty value
+                return;
+            }
             this.setDataValue('patientContact', encrypt(value));
         }
     },
@@ -350,13 +381,8 @@ const initializeDatabase = async () => {
     console.log('Database connection established successfully.');
 
     // Sync all models
-    // Use { force: true } only in development to drop and recreate tables
-    // Use { alter: true } in development to attempt to alter tables to match models (use migrations in prod)
-    await sequelize.sync({ alter: process.env.NODE_ENV !== 'production' });
+    await sequelize.sync();
     console.log('All models were synchronized successfully.');
-
-    // Optional: Seed initial data (e.g., admin user)
-     await seedAdminUser();
 
   } catch (error) {
     console.error('Unable to initialize the database:', error);
@@ -375,7 +401,7 @@ const seedAdminUser = async () => {
     }
 
      try {
-        const existingAdmin = await User.findOne({ where: { email: adminEmail } });
+        const existingAdmin = await User.findOne({ where: { email: adminEmail.toLowerCase() } });
         if (!existingAdmin) {
             await User.create({
                 email: adminEmail,
@@ -384,7 +410,16 @@ const seedAdminUser = async () => {
             });
             console.log(`Admin user ${adminEmail} created successfully.`);
         } else {
-            console.log(`Admin user ${adminEmail} already exists.`);
+            // Optional: Update admin password if needed and different from .env
+            // const isSamePassword = await existingAdmin.isValidPassword(adminPassword);
+            // if (!isSamePassword) {
+            //     console.log(`Updating password for admin user ${adminEmail}...`);
+            //     existingAdmin.passwordHash = adminPassword; // Let hook re-hash
+            //     await existingAdmin.save();
+            //     console.log(`Password updated for admin user ${adminEmail}.`);
+            // } else {
+                 console.log(`Admin user ${adminEmail} already exists.`);
+            // }
         }
     } catch (error) {
         console.error('Error seeding admin user:', error);
@@ -399,7 +434,4 @@ export {
   Assessment,
   ChatMessage,
   Appointment,
-  // Export encryption functions if needed elsewhere, but usually keep DB logic encapsulated
-  // encrypt,
-  // decrypt,
 };

@@ -574,7 +574,7 @@ export const Modal = ({ isOpen, onClose, title, children }) => {
               leaveFrom="opacity-100 scale-100"
               leaveTo="opacity-0 scale-95"
             >
-              <Dialog.Panel className="w-full max-w-md transform overflow-hidden rounded-2xl bg-white p-6 text-left align-middle shadow-xl transition-all">
+              <Dialog.Panel className="w-full transform overflow-hidden rounded-2xl bg-white p-6 text-left align-middle shadow-xl transition-all">
                 {title && (
                   <Dialog.Title
                     as="h3"
@@ -864,7 +864,7 @@ const RegisterPage = () => {
     if (registrationSuccess) {
         return (
             <div className="flex items-center justify-center min-h-screen bg-neutral-light">
-                <Card className="w-full max-w-md text-center">
+                <Card className="w-full text-center">
                     <FontAwesomeIcon icon={faCheckCircle} className="text-green-500 text-5xl mb-4" />
                     <h2 className="text-2xl font-bold mb-4">Registration Successful!</h2>
                     <p className="mb-6">You can now log in with your credentials.</p>
