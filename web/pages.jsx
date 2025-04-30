@@ -7,7 +7,6 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
 import Fuse from 'fuse.js';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faHeartPulse, faComments, faBookOpen, faChartLine, faUsersCog, faUserShield, faCheckCircle, faExclamationTriangle, faArrowRight, faSearch, faPaperPlane, faRobot, faUser, faClipboardList, faCalendarAlt, faLock, faArrowLeft, faDownload, faHistory } from '@fortawesome/free-solid-svg-icons'; // Added faHistory
 // Removido RecursoLayout de ui.jsx, pois será definido aqui ou importado de outro lugar se refatorado
 import { Button, Modal, Gauge, Input, Textarea, Card, Spinner, Alert } from './ui.jsx';
 import { useAuthStore } from './store.js';
@@ -27,6 +26,18 @@ import brainSleepActivityIllustration from './public/images/brain_sleep_activity
 import sleepMentalHealthCycleDiagram from './public/images/sleep_mental_health_cycle_diagram.png';
 import bedtimeRoutineIcons from './public/images/bedtime_routine_icons.png';
 
+import {
+  faHeartPulse, faComments, faBookOpen, faChartLine, faUsersCog, faUserShield,
+  faCheckCircle, faExclamationTriangle, faArrowRight, faSearch, faPaperPlane,
+  faRobot, faUser, faClipboardList, faCalendarAlt, faLock, faArrowLeft,
+  faDownload, faHistory, // Ícones existentes
+  // Ícones adicionados para a seção "Project Information" e outros usos:
+  faGraduationCap,       // Para Crédito Principal
+  faHandHoldingHeart,    // Para Objetivo Social
+  faCode,                // Para Licença & Código-fonte
+  faExternalLinkAlt      // Para link externo do GitHub
+} from '@fortawesome/free-solid-svg-icons'; // <-- Ícones do pacote SOLID
+import { faGithub } from '@fortawesome/free-brands-svg-icons'; // <-- Ícone do GitHub do pacote BRANDS
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
 
@@ -326,43 +337,71 @@ const HomePage = () => {
         </div>
       </section>
 
-      {/* Counters Section - Placeholder Static Data */}
-      <section className="py-12 bg-primary-light rounded-lg my-16">
+      {/* Project Information Section */}
+      <section className="py-10 bg-gradient-to-b from-gray-50 to-white">
         <div className="container mx-auto px-4">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
-            <div>
-              <p className="text-4xl font-bold text-primary-dark">10,000+</p>
-              <p className="text-lg text-neutral-dark">Avaliações Realizadas</p>
-            </div>
-            <div>
-              <p className="text-4xl font-bold text-primary-dark">5,000+</p>
-              <p className="text-lg text-neutral-dark">Usuários Atendidos</p>
-            </div>
-            <div>
-              <p className="text-4xl font-bold text-primary-dark">100+</p>
-              <p className="text-lg text-neutral-dark">Recursos Úteis</p>
-            </div>
-            <div>
-              <p className="text-4xl font-bold text-primary-dark">95%</p>
-              <p className="text-lg text-neutral-dark">Feedback Positivo</p>
-            </div>
+          <div className="grid gap-8 md:grid-cols-2">
+            <Card className="p-8 transform transition-all duration-300 hover:shadow-lg hover:-translate-y-1">
+              <div className="flex items-start">
+                <FontAwesomeIcon icon={faGraduationCap} size="2x" className="text-primary mr-4 mt-1" />
+                <div>
+                  <h3 className="text-2xl font-bold text-primary mb-4">Crédito Principal</h3>
+                  <p className="text-neutral-DEFAULT leading-relaxed">
+                    Desenvolvido pelo aluno Frederico Andrade<br/>
+                    <span className="text-sm text-neutral-DEFAULT/80">TECNOLOGIA EM ANÁLISE E DESENVOLVIMENTO DE SISTEMAS</span><br/>
+                    <span className="text-sm font-medium text-primary">Universidade Cruzeiro do Sul</span>
+                  </p>
+                </div>
+              </div>
+            </Card>
+            
+            <Card className="p-8 transform transition-all duration-300 hover:shadow-lg hover:-translate-y-1">
+              <div className="flex items-start">
+                <FontAwesomeIcon icon={faHandHoldingHeart} size="2x" className="text-primary mr-4 mt-1" />
+                <div>
+                  <h3 className="text-2xl font-bold text-primary mb-4">Objetivo Social</h3>
+                  <p className="text-neutral-DEFAULT leading-relaxed">
+                    Iniciativa de extensão universitária para democratizar triagem de saúde mental gratuita.
+                  </p>
+                </div>
+              </div>
+            </Card>
+            
+            <Card className="p-8 transform transition-all duration-300 hover:shadow-lg hover:-translate-y-1">
+              <div className="flex items-start">
+                <FontAwesomeIcon icon={faCode} size="2x" className="text-primary mr-4 mt-1" />
+                <div>
+                  <h3 className="text-2xl font-bold text-primary mb-4">Licença & Código-fonte</h3>
+                  <p className="text-neutral-DEFAULT leading-relaxed">
+                    Código aberto sob licença MIT<br/>
+                    <a 
+                      href="https://github.com/FredericoAndrade1000/MindWell-Assist" 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center text-primary hover:text-primary-dark mt-2 group"
+                    >
+                      <FontAwesomeIcon icon={faGithub} className="mr-2" />
+                      GitHub Repository
+                      <FontAwesomeIcon icon={faExternalLinkAlt} className="ml-2 text-xs opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </a>
+                  </p>
+                </div>
+              </div>
+            </Card>
+            
+            <Card className="p-8 border-l-4 border-danger bg-danger/5 transform transition-all duration-300 hover:shadow-lg hover:-translate-y-1">
+              <div className="flex items-start">
+                <FontAwesomeIcon icon={faExclamationTriangle} size="2x" className="text-danger mr-4 mt-1" />
+                <div>
+                  <h3 className="text-2xl font-bold text-danger mb-4">Declaração de Responsabilidade</h3>
+                  <p className="text-neutral-DEFAULT leading-relaxed">
+                    Não substitui avaliação médica.<br/>
+                    <span className="font-medium">Em caso de crise, ligue 188 (CVV)</span>
+                  </p>
+                </div>
+              </div>
+            </Card>
           </div>
-        </div>
-      </section>
-
-
-      {/* Testimonials Section - Placeholder */}
-      <section className="py-16">
-        <h2 className="text-3xl font-bold text-center mb-12 text-neutral-dark">O Que os Usuários Dizem</h2>
-        <div className="grid md:grid-cols-2 gap-8">
-          <Card>
-            <blockquote className="italic text-neutral-DEFAULT mb-4">"A avaliação foi rápida e esclarecedora. Ajudou-me a perceber que precisava conversar com alguém."</blockquote>
-            <p className="font-semibold">- Alex P.</p>
-          </Card>
-          <Card>
-            <blockquote className="italic text-neutral-DEFAULT mb-4">"O chat de IA ofereceu palavras de conforto quando me senti sobrecarregado. É um ótimo primeiro passo."</blockquote>
-            <p className="font-semibold">- Jamie R.</p>
-          </Card>
         </div>
       </section>
     </div>

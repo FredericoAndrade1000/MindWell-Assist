@@ -1,4 +1,3 @@
-
 // api/routes.js
 import express from 'express';
 import jwt from 'jsonwebtoken';
@@ -9,6 +8,57 @@ import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import crypto from 'crypto'; // <<< Import crypto
+
+// Rate limiter middleware
+const rateLimiter = () => {
+    const limits = new Map(); // Store IP -> { count, resetTime, dailyCount, dailyResetTime }
+    
+    return (req, res, next) => {
+        const ip = req.ip;
+        const now = Date.now();
+        
+        // Initialize or get rate limit data for this IP
+        if (!limits.has(ip)) {
+            limits.set(ip, {
+                count: 0,
+                resetTime: now + 60000, // 1 minute from now
+                dailyCount: 0,
+                dailyResetTime: now + 86400000 // 24 hours from now
+            });
+        }
+        
+        const limitData = limits.get(ip);
+        
+        // Reset counters if time has passed
+        if (now > limitData.resetTime) {
+            limitData.count = 0;
+            limitData.resetTime = now + 60000;
+        }
+        if (now > limitData.dailyResetTime) {
+            limitData.dailyCount = 0;
+            limitData.dailyResetTime = now + 86400000;
+        }
+        
+        // Check limits
+        if (limitData.count >= 5) {
+            return res.status(429).json({ 
+                message: 'Limite de 5 mensagens por minuto atingido. Por favor, aguarde um momento.' 
+            });
+        }
+        
+        if (limitData.dailyCount >= 300) {
+            return res.status(429).json({ 
+                message: 'Limite diário de 300 mensagens atingido. Por favor, tente novamente amanhã.' 
+            });
+        }
+        
+        // Increment counters
+        limitData.count++;
+        limitData.dailyCount++;
+        
+        next();
+    };
+};
 
 const router = express.Router();
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -266,7 +316,7 @@ router.get('/assessments/history', authenticateToken, async (req, res, next) => 
 // --- Chat Routes ---
 
 // POST /chat
-router.post('/chat', async (req, res, next) => {
+router.post('/chat', rateLimiter(), async (req, res, next) => {
     const { message, userId, sessionId } = req.body;
 
     if (!message) {
