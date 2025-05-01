@@ -259,10 +259,15 @@ ChatMessage.init({
         autoIncrement: true,
         primaryKey: true,
     },
-    sessionId: { // Group messages belonging to the same conversation
-        type: DataTypes.UUID,
-        defaultValue: DataTypes.UUIDV4,
+    sessionId: { // Link to the ChatSession model
+        type: DataTypes.UUID, // Keep UUID if ChatSession uses UUID PK
         allowNull: false,
+        references: {
+            model: 'ChatSessions', // <<< Link to ChatSessions table name
+            key: 'id'
+        },
+        onDelete: 'CASCADE', // Delete messages if session is deleted
+        onUpdate: 'CASCADE'
     },
     userId: {
         type: DataTypes.INTEGER,
@@ -270,28 +275,53 @@ ChatMessage.init({
             model: User,
             key: 'id',
         },
-        allowNull: true, // Allow anonymous chats
+        allowNull: true, // Allow system/assistant messages potentially not linked to a specific user action
         onDelete: 'SET NULL',
         onUpdate: 'CASCADE',
     },
     role: {
-        type: DataTypes.ENUM('user', 'assistant', 'system'), // Added 'system' role
+        type: DataTypes.ENUM('user', 'assistant', 'system'),
         allowNull: false,
     },
     content: { // Consider encrypting if chat content is highly sensitive
         type: DataTypes.TEXT,
         allowNull: false,
-        // get() {
-        //     const rawValue = this.getDataValue('content');
-        //     return decrypt(rawValue);
-        // },
-        // set(value) {
-        //     this.setDataValue('content', encrypt(value));
-        // }
     },
 }, {
     sequelize,
     modelName: 'ChatMessage',
+    tableName: 'ChatMessages' // Explicitly define table name
+});
+
+// --- Define ChatSession Model ---
+class ChatSession extends Model {}
+ChatSession.init({
+    id: {
+        type: DataTypes.UUID,
+        defaultValue: DataTypes.UUIDV4,
+        primaryKey: true,
+        allowNull: false,
+    },
+    userId: {
+        type: DataTypes.INTEGER,
+        allowNull: false, // A session must belong to a user
+        references: {
+            model: User,
+            key: 'id'
+        },
+        onDelete: 'CASCADE', // Delete sessions if user is deleted
+        onUpdate: 'CASCADE'
+    },
+    isActive: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: true, // Sessions start as active
+    },
+    // Timestamps (createdAt, updatedAt) are added by default by Sequelize
+}, {
+    sequelize,
+    modelName: 'ChatSession',
+    tableName: 'ChatSessions' // Explicitly define table name
 });
 
 class Appointment extends Model {}
@@ -364,10 +394,19 @@ Appointment.init({
 User.hasMany(Assessment, { foreignKey: 'userId' });
 Assessment.belongsTo(User, { foreignKey: 'userId' });
 
+// Chat Relationships
+User.hasMany(ChatSession, { foreignKey: 'userId' });
+ChatSession.belongsTo(User, { foreignKey: 'userId' });
+
+ChatSession.hasMany(ChatMessage, { foreignKey: 'sessionId' });
+ChatMessage.belongsTo(ChatSession, { foreignKey: 'sessionId' });
+
+// Link ChatMessage directly to User as well (for easier querying/association)
 User.hasMany(ChatMessage, { foreignKey: 'userId' });
 ChatMessage.belongsTo(User, { foreignKey: 'userId' });
 
-User.hasMany(Appointment, { foreignKey: 'professionalId', as: 'AssignedAppointments' }); // Professional assigned
+// Appointment Relationships (keep existing)
+User.hasMany(Appointment, { foreignKey: 'professionalId', as: 'AssignedAppointments' });
 Appointment.belongsTo(User, { foreignKey: 'professionalId', as: 'Professional' });
 
 // Might add a requestedByUserId to Appointment if requests always come from logged-in users
@@ -434,4 +473,5 @@ export {
   Assessment,
   ChatMessage,
   Appointment,
+  ChatSession // <<< Export ChatSession
 };

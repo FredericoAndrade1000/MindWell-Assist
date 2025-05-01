@@ -14,7 +14,6 @@ const logToFile = (message) => {
     const logMessage = `${timestamp} - ${message}\n`;
     try {
         fs.appendFileSync(LOG_FILE_PATH, logMessage);
-        console.log(logMessage.trim()); // Also log to console
     } catch (err) {
         console.error('Failed to write to log file:', err);
     }

@@ -30,7 +30,7 @@ import {
   faHeartPulse, faComments, faBookOpen, faChartLine, faUsersCog, faUserShield,
   faCheckCircle, faExclamationTriangle, faArrowRight, faSearch, faPaperPlane,
   faRobot, faUser, faClipboardList, faCalendarAlt, faLock, faArrowLeft,
-  faDownload, faHistory, // Ícones existentes
+  faDownload, faHistory, faBars, faTimes, faTrashAlt, // Added faTrashAlt
   // Ícones adicionados para a seção "Project Information" e outros usos:
   faGraduationCap,       // Para Crédito Principal
   faHandHoldingHeart,    // Para Objetivo Social
@@ -66,61 +66,88 @@ const loginSchema = yup.object({
 }).required();
 
 const LoginPage = () => {
+  const { login, error: authError, isLoading, clearError } = useAuthStore();
   const navigate = useNavigate();
-  const { login, isAuthenticated, isLoading, error, clearError } = useAuthStore();
-  const { register, handleSubmit, formState: { errors } } = useForm({
-    resolver: yupResolver(loginSchema),
-  });
+  const { register, handleSubmit, formState: { errors } } = useForm();
 
+  // Limpa erros quando o componente é desmontado ou quando muda de rota
   useEffect(() => {
-    clearError();
-    if (isAuthenticated) {
-      navigate('/pro/dashboard');
-    }
-  }, [isAuthenticated, navigate, clearError]);
+    return () => clearError();
+  }, [clearError]);
 
   const onSubmit = async (data) => {
     const success = await login(data.email, data.password);
     if (success) {
-      navigate('/pro/dashboard');
+      navigate('/');
     }
   };
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-neutral-light">
-      <Card className="w-full max-w-md">
-        <h2 className="text-2xl font-bold text-center mb-6 text-primary">Entrar</h2>
-        {error && <Alert type="error" message={error} className="mb-4" />}
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-          <Input
-            label="Email"
-            name="email"
-            type="email"
-            error={errors.email?.message}
-            {...register('email')}
+    <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center py-8 sm:py-16 px-4 bg-gray-50">
+      <div className="w-full max-w-md bg-white rounded-xl shadow-lg p-6 sm:p-8 transform transition-all duration-300 hover:shadow-xl">
+        <h2 className="text-3xl font-bold text-center text-primary mb-8">Entrar</h2>
+        
+        {authError && (
+          <div className="mb-6 p-4 bg-red-50 border border-red-200 text-red-700 rounded-lg">
+            <p className="text-sm">{authError}</p>
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+          <div>
+            <label htmlFor="email" className="block text-sm font-medium text-neutral-dark mb-1">
+              Email
+            </label>
+            <Input
+              type="email"
+              id="email"
+              {...register('email', { 
+                required: 'Email é obrigatório',
+                pattern: {
+                  value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
+                  message: 'Email inválido'
+                }
+              })}
+              error={errors.email?.message}
+              disabled={isLoading}
+              className="w-full"
+            />
+          </div>
+          <div>
+            <label htmlFor="password" className="block text-sm font-medium text-neutral-dark mb-1">
+              Senha
+            </label>
+            <Input
+              type="password"
+              id="password"
+              {...register('password', { 
+                required: 'Senha é obrigatória',
+                minLength: {
+                  value: 6,
+                  message: 'A senha deve ter pelo menos 6 caracteres'
+                }
+              })}
+              error={errors.password?.message}
+              disabled={isLoading}
+              className="w-full"
+            />
+          </div>
+          <Button 
+            type="submit" 
+            variant="primary" 
+            className="w-full py-2.5"
             disabled={isLoading}
-            aria-invalid={errors.email ? "true" : "false"}
-          />
-          <Input
-            label="Senha"
-            name="password"
-            type="password"
-            error={errors.password?.message}
-            {...register('password')}
-            disabled={isLoading}
-            aria-invalid={errors.password ? "true" : "false"}
-          />
-          <Button type="submit" variant="primary" className="w-full mt-4" loading={isLoading} disabled={isLoading}>
+          >
             {isLoading ? 'Entrando...' : 'Entrar'}
           </Button>
-          <p className="mt-4 text-center text-sm text-neutral-DEFAULT">
-            Não tem uma conta?{' '}
-            <Link to="/register" className="font-medium text-primary hover:text-primary-dark">
-              Registre-se aqui
-            </Link>
-          </p>
         </form>
-      </Card>
+        <p className="mt-6 text-center text-neutral-dark">
+          Não tem uma conta?{' '}
+          <Link to="/registrar" className="text-primary hover:text-primary-dark font-medium">
+            Registre-se aqui
+          </Link>
+        </p>
+      </div>
     </div>
   );
 };
@@ -135,83 +162,74 @@ const registerSchema = yup.object({
 
 const RegisterPage = () => {
   const navigate = useNavigate();
-  const { register: registerUser, isLoading, error, clearError } = useAuthStore();
-  const { register, handleSubmit, formState: { errors } } = useForm({
-    resolver: yupResolver(registerSchema),
-  });
-  const [registrationSuccess, setRegistrationSuccess] = useState(false);
-
-  useEffect(() => {
-    clearError();
-  }, [clearError]);
+  const { register, handleSubmit, watch, formState: { errors } } = useForm();
 
   const onSubmit = async (data) => {
-    const success = await registerUser(data.email, data.password);
-    if (success) {
-      setRegistrationSuccess(true);
+    try {
+      const response = await axios.post(`${API_BASE_URL}/auth/register`, data);
+      if (response.status === 201) {
+        navigate('/login');
+      }
+    } catch (error) {
+      console.error('Erro ao registrar:', error);
     }
   };
 
-  if (registrationSuccess) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-neutral-light">
-        <Card className="w-full text-center">
-          <FontAwesomeIcon icon={faCheckCircle} className="text-green-500 text-5xl mb-4" />
-          <h2 className="text-2xl font-bold mb-4">Registro Concluído com Sucesso!</h2>
-          <p className="mb-6">Agora você pode entrar com suas credenciais.</p>
-          <Link to="/login">
-            <Button variant="primary">Ir para Login</Button>
-          </Link>
-        </Card>
-      </div>
-    );
-  }
-
-
   return (
-    <div className="flex items-center justify-center min-h-screen bg-neutral-light">
-      <Card className="w-full max-w-md">
-        <h2 className="text-2xl font-bold text-center mb-6 text-primary">Registrar</h2>
-        {error && <Alert type="error" message={error} className="mb-4" />}
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-          <Input
-            label="Email"
-            name="email"
-            type="email"
-            error={errors.email?.message}
-            {...register('email')}
-            disabled={isLoading}
-             aria-invalid={errors.email ? "true" : "false"}
-          />
-          <Input
-            label="Senha"
-            name="password"
-            type="password"
-            error={errors.password?.message}
-            {...register('password')}
-            disabled={isLoading}
-            aria-invalid={errors.password ? "true" : "false"}
-          />
-          <Input
-            label="Confirmar Senha"
-            name="confirmPassword"
-            type="password"
-            error={errors.confirmPassword?.message}
-            {...register('confirmPassword')}
-            disabled={isLoading}
-             aria-invalid={errors.confirmPassword ? "true" : "false"}
-          />
-          <Button type="submit" variant="primary" className="w-full mt-4" loading={isLoading} disabled={isLoading}>
-            {isLoading ? 'Registrando...' : 'Registrar'}
+    <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center py-8 sm:py-16 px-4 bg-gray-50">
+      <div className="w-full max-w-md bg-white rounded-xl shadow-lg p-6 sm:p-8 transform transition-all duration-300 hover:shadow-xl">
+        <h2 className="text-3xl font-bold text-center text-primary mb-8">Registrar</h2>
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+          <div>
+            <label htmlFor="email" className="block text-sm font-medium text-neutral-dark mb-1">
+              Email
+            </label>
+            <Input
+              type="email"
+              id="email"
+              {...register('email', { required: true })}
+              error={errors.email}
+              className="w-full"
+            />
+          </div>
+          <div>
+            <label htmlFor="password" className="block text-sm font-medium text-neutral-dark mb-1">
+              Senha
+            </label>
+            <Input
+              type="password"
+              id="password"
+              {...register('password', { required: true })}
+              error={errors.password}
+              className="w-full"
+            />
+          </div>
+          <div>
+            <label htmlFor="confirmPassword" className="block text-sm font-medium text-neutral-dark mb-1">
+              Confirmar Senha
+            </label>
+            <Input
+              type="password"
+              id="confirmPassword"
+              {...register('confirmPassword', {
+                required: true,
+                validate: value => value === watch('password') || 'As senhas não coincidem'
+              })}
+              error={errors.confirmPassword}
+              className="w-full"
+            />
+          </div>
+          <Button type="submit" variant="primary" className="w-full py-2.5">
+            Registrar
           </Button>
-          <p className="mt-4 text-center text-sm text-neutral-DEFAULT">
-            Já tem uma conta?{' '}
-            <Link to="/login" className="font-medium text-primary hover:text-primary-dark">
-              Entre aqui
-            </Link>
-          </p>
         </form>
-      </Card>
+        <p className="mt-6 text-center text-neutral-dark">
+          Já tem uma conta?{' '}
+          <Link to="/login" className="text-primary hover:text-primary-dark font-medium">
+            Entre aqui
+          </Link>
+        </p>
+      </div>
     </div>
   );
 };
@@ -242,37 +260,161 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
 const Layout = ({ children }) => {
   const { isAuthenticated, user, logout } = useAuthStore();
   const navigate = useNavigate();
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const handleLogout = () => {
     logout();
     navigate('/');
+    setIsMobileMenuOpen(false);
   };
+
+  const toggleMobileMenu = () => {
+    setIsMobileMenuOpen(!isMobileMenuOpen);
+  };
+
+  const NavLinks = () => (
+    <>
+      <Link 
+        to="/autoavaliacao" 
+        className="flex items-center text-lg py-3 px-4 text-neutral-dark hover:text-primary hover:bg-gray-50 rounded-lg transition-colors duration-200"
+        onClick={() => setIsMobileMenuOpen(false)}
+      >
+        <FontAwesomeIcon icon={faHeartPulse} className="mr-3 w-5" />
+        Autoavaliação
+      </Link>
+      <Link 
+        to="/chat" 
+        className="flex items-center text-lg py-3 px-4 text-neutral-dark hover:text-primary hover:bg-gray-50 rounded-lg transition-colors duration-200"
+        onClick={() => setIsMobileMenuOpen(false)}
+      >
+        <FontAwesomeIcon icon={faComments} className="mr-3 w-5" />
+        Assistente de Chat
+      </Link>
+      <Link 
+        to="/recursos" 
+        className="flex items-center text-lg py-3 px-4 text-neutral-dark hover:text-primary hover:bg-gray-50 rounded-lg transition-colors duration-200"
+        onClick={() => setIsMobileMenuOpen(false)}
+      >
+        <FontAwesomeIcon icon={faBookOpen} className="mr-3 w-5" />
+        Recursos
+      </Link>
+      {isAuthenticated && user?.role === 'professional' && (
+        <Link 
+          to="/pro/dashboard" 
+          className="flex items-center text-lg py-3 px-4 text-neutral-dark hover:text-primary hover:bg-gray-50 rounded-lg transition-colors duration-200"
+          onClick={() => setIsMobileMenuOpen(false)}
+        >
+          <FontAwesomeIcon icon={faUsersCog} className="mr-3 w-5" />
+          Painel Pro
+        </Link>
+      )}
+      {isAuthenticated && user?.role === 'admin' && (
+        <Link 
+          to="/admin" 
+          className="flex items-center text-lg py-3 px-4 text-neutral-dark hover:text-primary hover:bg-gray-50 rounded-lg transition-colors duration-200"
+          onClick={() => setIsMobileMenuOpen(false)}
+        >
+          <FontAwesomeIcon icon={faUserShield} className="mr-3 w-5" />
+          Admin
+        </Link>
+      )}
+      <div className="px-4">
+        {isAuthenticated ? (
+          <Button 
+            onClick={handleLogout} 
+            variant="outline" 
+            size="lg"
+            className="w-full flex items-center justify-center"
+          >
+            <FontAwesomeIcon icon={faArrowLeft} className="mr-2" />
+            Sair
+          </Button>
+        ) : (
+          <Link 
+            to="/login" 
+            onClick={() => setIsMobileMenuOpen(false)}
+            className="w-full"
+          >
+            <Button 
+              variant="primary" 
+              size="lg"
+              className="w-full flex items-center justify-center"
+            >
+              <FontAwesomeIcon icon={faUser} className="mr-2" />
+              Entrar
+            </Button>
+          </Link>
+        )}
+      </div>
+    </>
+  );
 
   return (
     <div className="min-h-screen flex flex-col">
       <header className="bg-white shadow-sm sticky top-0 z-40">
-        <nav className="container mx-auto px-4 py-3 flex justify-between items-center">
-          <Link to="/" className="text-xl font-bold text-primary">MindWell Assist</Link>
-          <div className="space-x-4 flex items-center">
-            <Link to="/autoavaliacao" className="text-neutral-dark hover:text-primary">Autoavaliação</Link>
-            <Link to="/chat" className="text-neutral-dark hover:text-primary">Assistente de Chat</Link>
-            <Link to="/recursos" className="text-neutral-dark hover:text-primary">Recursos</Link>
-            {isAuthenticated && user?.role === 'professional' && (
-              <Link to="/pro/dashboard" className="text-neutral-dark hover:text-primary">Painel Pro</Link>
-            )}
-            {isAuthenticated && user?.role === 'admin' && (
-              <Link to="/admin" className="text-neutral-dark hover:text-primary">Admin</Link>
-            )}
-            {isAuthenticated ? (
-              <Button onClick={handleLogout} variant="outline" size="sm">Sair</Button>
-            ) : (
-              <Link to="/login">
-                <Button variant="primary" size="sm">Entrar</Button>
-              </Link>
-            )}
+        <nav className="container mx-auto px-4 py-3">
+          <div className="flex justify-between items-center">
+            <Link to="/" className="text-xl font-bold text-primary">MindWell Assist</Link>
+            
+            {/* Desktop Navigation */}
+            <div className="hidden md:flex space-x-6 items-center">
+              <NavLinks />
+            </div>
+
+            {/* Mobile Hamburger Button */}
+            <button
+              className="md:hidden p-2 text-neutral-dark hover:text-primary"
+              onClick={toggleMobileMenu}
+              aria-label="Toggle menu"
+            >
+              <FontAwesomeIcon 
+                icon={isMobileMenuOpen ? faTimes : faBars} 
+                className="h-6 w-6"
+              />
+            </button>
           </div>
         </nav>
       </header>
+
+      {/* Mobile Navigation Overlay */}
+      <div
+        className={`fixed inset-0 z-50 transition-all duration-300 ease-in-out ${
+          isMobileMenuOpen ? 'visible bg-black/20' : 'invisible'
+        } md:hidden`}
+        onClick={toggleMobileMenu}
+      >
+        <div
+          className={`fixed inset-y-0 right-0 w-[280px] bg-white shadow-xl transition-transform duration-300 ease-in-out transform ${
+            isMobileMenuOpen ? 'translate-x-0' : 'translate-x-full'
+          }`}
+          onClick={e => e.stopPropagation()}
+        >
+          <div className="flex flex-col h-full">
+            <div className="flex justify-between items-center px-6 py-4 border-b">
+              <Link 
+                to="/" 
+                className="text-2xl font-bold text-primary"
+                onClick={() => setIsMobileMenuOpen(false)}
+              >
+                MindWell Assist
+              </Link>
+              <button
+                className="p-2 text-neutral-dark hover:text-primary rounded-full hover:bg-gray-100 transition-colors duration-200"
+                onClick={toggleMobileMenu}
+                aria-label="Close menu"
+              >
+                <FontAwesomeIcon icon={faTimes} className="h-6 w-6" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto py-6 px-2">
+              <nav className="flex flex-col space-y-2">
+                <NavLinks />
+              </nav>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <main className="flex-grow container mx-auto px-4 py-8">
         {children}
       </main>
@@ -296,22 +438,24 @@ const HomePage = () => {
   return (
     <div>
       {/* Hero Section */}
-      <section className="text-center py-16 md:py-24 bg-gradient-to-r from-primary-light to-cyan-600 text-white rounded-lg shadow-lg">
-        <h1 className="text-4xl md:text-5xl font-bold mb-4">Sua Jornada para o Bem-Estar Mental Começa Aqui</h1>
-        <p className="text-lg md:text-xl mb-8 max-w-3xl mx-auto">Entenda seus sentimentos, explore recursos e conecte-se com nosso assistente de IA. Confidencial e acolhedor.</p>
-        <div className="space-x-4">
-          <Link to="/autoavaliacao">
-            <Button variant="secondary" size="lg">
-              <FontAwesomeIcon icon={faHeartPulse} className="mr-2" />
-              Iniciar Autoavaliação
-            </Button>
-          </Link>
-          <Link to="/chat">
-            <Button variant="outline" className="bg-white text-primary border-white hover:bg-white/90" size="lg">
-              <FontAwesomeIcon icon={faComments} className="mr-2" />
-              Conversar com Assistente
-            </Button>
-          </Link>
+      <section className="text-center py-8 sm:py-12 md:py-16 lg:py-24 bg-gradient-to-r from-primary-light to-cyan-600 text-white rounded-lg shadow-lg px-4">
+        <div className="max-w-4xl mx-auto">
+          <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold mb-4 leading-tight">Sua Jornada para o Bem-Estar Mental Começa Aqui</h1>
+          <p className="text-base sm:text-lg md:text-xl mb-8 max-w-3xl mx-auto px-4">Entenda seus sentimentos, explore recursos e conecte-se com nosso assistente de IA. Confidencial e acolhedor.</p>
+          <div className="flex flex-col sm:flex-row justify-center items-center gap-4 sm:space-x-4">
+            <Link to="/autoavaliacao" className="w-full sm:w-auto">
+              <Button variant="secondary" size="lg" className="w-full sm:w-auto">
+                <FontAwesomeIcon icon={faHeartPulse} className="mr-2" />
+                Iniciar Autoavaliação
+              </Button>
+            </Link>
+            <Link to="/chat" className="w-full sm:w-auto">
+              <Button variant="outline" className="w-full sm:w-auto bg-white text-primary border-white hover:bg-white/90" size="lg">
+                <FontAwesomeIcon icon={faComments} className="mr-2" />
+                Conversar com Assistente
+              </Button>
+            </Link>
+          </div>
         </div>
       </section>
 
@@ -869,27 +1013,79 @@ const Tooltip = ({ children, text }) => (
 // --- Chat Page (sem alterações) ---
 // ... (código existente da ChatPage) ...
 const ChatPage = () => {
-  const [messages, setMessages] = useState([]); // { role: 'user' | 'assistant', content: string }[]
+  const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
-  const { user, isAuthenticated } = useAuthStore(); // <<< Get user and auth status
-  const [sessionId, setSessionId] = useState(null); // Store session ID for context
+  const { user, isAuthenticated } = useAuthStore();
+  const [sessionId, setSessionId] = useState(null);
   const messagesEndRef = useRef(null);
+  const chatContainerRef = useRef(null);
+  const queryClient = useQueryClient(); // Get query client instance
 
-  const chatMutation = useMutation({
-    // Send userId only if authenticated
-    mutationFn: (newMessageData) => apiClient.post('/chat', newMessageData),
-    onSuccess: (response) => {
-      setMessages(prev => [...prev, { role: 'assistant', content: response.data.reply }]);
-      // Ensure session ID is stored from the first response
-      if (!sessionId && response.data.sessionId) {
-         setSessionId(response.data.sessionId);
+  // --- Fetch Chat History ---
+  const { data: chatHistory, isLoading: isLoadingHistory, error: historyError } = useQuery({
+    queryKey: ['chatHistory', user?.id], // Key based on user ID
+    queryFn: () => apiClient.get('/chat/history').then(res => res.data.messages || []), // Assume endpoint returns { messages: [...] } or empty array
+    enabled: isAuthenticated, // Only fetch if logged in
+    staleTime: 5 * 60 * 1000, // Consider history stale after 5 minutes
+    refetchOnWindowFocus: false, // Don't refetch just on window focus
+  });
+
+  // --- Update messages state with history ---
+  useEffect(() => {
+    if (chatHistory) {
+      // Only set history if local messages are empty (avoids overriding during session)
+      // Or if the history length is different (e.g., after clearing)
+      if (messages.length === 0 || messages.length !== chatHistory.length) {
+        setMessages(chatHistory);
+        // Try to get sessionId from history if not already set (optional, depends on backend structure)
+        // if (!sessionId && chatHistory.length > 0) {
+        //   // Logic to extract sessionId from history if available
+        // }
       }
+    }
+  }, [chatHistory]); // Depend on chatHistory data
+
+  // --- Send Message Mutation ---
+  const chatMutation = useMutation({
+    mutationFn: (newMessageData) => apiClient.post('/chat', newMessageData),
+    onSuccess: (response, variables) => {
+        // Append only the assistant's reply
+        setMessages(prev => [...prev, { role: 'assistant', content: response.data.reply }]);
+        if (!sessionId && response.data.sessionId) {
+            setSessionId(response.data.sessionId);
+        }
+        // Optionally invalidate history query if saving happens implicitly via /chat
+        // queryClient.invalidateQueries({ queryKey: ['chatHistory', user?.id] });
     },
     onError: (error) => {
       console.error("Chat error:", error);
-      setMessages(prev => [...prev, { role: 'assistant', content: error.response?.data?.message || "Desculpe, ocorreu um erro inesperado ao processar sua mensagem." }]);
+      // Show error as a message from the assistant
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: `Erro: ${error.response?.data?.message || 'Não foi possível processar sua mensagem.'}`
+      }]);
     },
   });
+
+    // --- Clear Chat Mutation ---
+    const clearChatMutation = useMutation({
+      mutationFn: () => apiClient.delete('/chat/session'), // Assume DELETE request to clear session
+      onSuccess: () => {
+        setMessages([]); // Clear local messages
+        setSessionId(null); // Reset session ID
+        queryClient.invalidateQueries({ queryKey: ['chatHistory', user?.id] }); // Refetch history (which should be empty)
+        // Optionally show a success message or keep it silent
+        console.log("Chat history cleared.");
+      },
+      onError: (error) => {
+        console.error("Clear chat error:", error);
+        // Show error message within the chat?
+        setMessages(prev => [...prev, {
+            role: 'assistant',
+            content: `Erro ao limpar chat: ${error.response?.data?.message || 'Tente novamente.'}`
+        }]);
+      }
+    });
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -897,96 +1093,152 @@ const ChatPage = () => {
 
   useEffect(scrollToBottom, [messages]);
 
-   // Reset chat when user logs in/out or component mounts
-   useEffect(() => {
-       setMessages([]);
-       setSessionId(null); // Reset session on user change or mount
-   }, [isAuthenticated, user]); // Depend on auth state
+  // --- Reset on Auth Change (keeps clearing local state) ---
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setMessages([]);
+      setSessionId(null);
+    }
+    // History fetching is handled by useQuery's 'enabled' flag
+  }, [isAuthenticated]);
 
   const handleSend = (e) => {
     e.preventDefault();
     if (input.trim() && !chatMutation.isLoading) {
       const userMessage = { role: 'user', content: input };
+      // Append user message locally immediately
       setMessages(prev => [...prev, userMessage]);
 
-      // Prepare data for mutation
       const messageData = {
-          message: input,
-          sessionId: sessionId // Include session ID if it exists
+        message: input,
+        sessionId: sessionId, // Include current session ID
+        // Backend should handle associating with the user via token
       };
-      // Include userId only if authenticated
-      if (isAuthenticated && user?.id) {
-          messageData.userId = user.id;
-      }
+      // No need to send userId explicitly if backend uses token
 
       chatMutation.mutate(messageData);
       setInput('');
     }
   };
 
+  const handleClearChat = () => {
+    if (window.confirm("Tem certeza que deseja limpar o histórico deste chat?")) {
+        clearChatMutation.mutate();
+    }
+  }
+
+  const showInitialBotMessage = !isLoadingHistory && !historyError && messages.length === 0;
+
   return (
-    <div className="flex flex-col h-[calc(100vh-200px)] max-w-3xl mx-auto bg-white rounded-lg shadow-md overflow-hidden border border-gray-200">
-      <div className="p-4 border-b bg-primary-light text-primary-dark font-semibold">
-        <FontAwesomeIcon icon={faComments} className="mr-2" /> Chat com Assistente MindGuide
+    <div className="flex flex-col h-full max-w-4xl mx-auto">
+      <div className="bg-white rounded-t-xl shadow-md">
+        <div className="p-4 border-b bg-primary-light text-primary-dark font-semibold flex items-center justify-between">
+          <div className="flex items-center">
+            <FontAwesomeIcon icon={faRobot} className="mr-2 text-primary" />
+            Chat com Assistente MindGuide
+          </div>
+          {/* Show clear button only if authenticated and there are messages */}
+          {isAuthenticated && messages.length > 0 && (
+            <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleClearChat}
+                disabled={clearChatMutation.isLoading}
+                className="text-neutral-dark hover:text-danger hover:bg-danger/10"
+                aria-label="Limpar histórico do chat"
+            >
+                <FontAwesomeIcon icon={faTrashAlt} className="mr-1 h-3.5 w-3.5" />
+                {clearChatMutation.isLoading ? 'Limpando...' : 'Limpar'}
+            </Button>
+          )}
+        </div>
       </div>
-      <div className="flex-grow p-4 overflow-y-auto space-y-4 bg-gray-50">
-        {/* Initial message from bot */}
-        {messages.length === 0 && (
+
+      <div
+        ref={chatContainerRef}
+        className="flex-1 bg-gray-50 overflow-y-auto p-4 space-y-4"
+        style={{ height: 'calc(100vh - 16rem)' }} // Adjust height based on header/footer/input
+      >
+        {/* Loading State */}
+        {isLoadingHistory && (
+            <div className="flex justify-center items-center h-full">
+                <Spinner size="lg" />
+            </div>
+        )}
+        {/* Error State */}
+        {historyError && !isLoadingHistory && (
+            <Alert type="error" message={`Erro ao carregar histórico: ${historyError.message}`} />
+        )}
+
+        {/* Initial Bot Message */}
+        {showInitialBotMessage && !isLoadingHistory && !historyError && (
           <div className="flex items-start space-x-3">
             <FontAwesomeIcon icon={faRobot} className="text-primary text-xl mt-1 flex-shrink-0" />
-            <div className="bg-gray-100 p-3 rounded-lg sm:shadow-sm border border-gray-200">
+            <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 max-w-[80%]">
               <p className="text-sm text-neutral-dark">Olá! Eu sou o MindGuide. Como posso te ajudar hoje? Você pode perguntar sobre bem-estar, ansiedade, humor ou como funcionam as autoavaliações.</p>
-                 {/* Show context awareness hint if logged in */}
-                 {isAuthenticated && (
-                    <p className="text-xs text-neutral-DEFAULT mt-2 italic">Se você fez uma autoavaliação recentemente, posso levar isso em conta.</p>
-                )}
+              {isAuthenticated && (
+                <p className="text-xs text-neutral-DEFAULT mt-2 italic">Se você fez uma autoavaliação recentemente, posso levar isso em conta.</p>
+              )}
             </div>
           </div>
         )}
-        {/* Chat messages */}
-        {messages.map((msg, index) => (
+
+        {/* Chat Messages */}
+        {!isLoadingHistory && !historyError && messages.map((msg, index) => (
+          // Message rendering logic (unchanged)
           <div key={index} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-            <div className={`flex items-start space-x-3 ${msg.role === 'user' ? 'flex-row-reverse space-x-reverse' : ''}`}>
-              <FontAwesomeIcon icon={msg.role === 'user' ? faUser : faRobot} className={`text-xl mt-1 flex-shrink-0 ${msg.role === 'user' ? 'text-secondary-dark' : 'text-primary'}`} />
-              <div className={`${msg.role === 'user' ? 'bg-primary text-white' : 'bg-gray-100 text-neutral-dark border border-gray-200'} p-3 rounded-lg sm:shadow-sm`}>
-                {/* Basic Markdown support (line breaks) */}
-                 {msg.content.split('\n').map((line, i) => (
-                   <p key={i} className="text-sm">{line || '\u00A0'}</p> // Use non-breaking space for empty lines
-                 ))}
+            <div className={`flex items-start space-x-3 ${msg.role === 'user' ? 'flex-row-reverse space-x-reverse' : ''} max-w-[80%]`}>
+              <FontAwesomeIcon 
+                icon={msg.role === 'user' ? faUser : faRobot} 
+                className={`text-xl mt-1 flex-shrink-0 ${msg.role === 'user' ? 'text-secondary-dark' : 'text-primary'}`} 
+              />
+              <div 
+                className={`p-4 rounded-xl shadow-sm ${
+                  msg.role === 'user' 
+                    ? 'bg-primary text-white' 
+                    : 'bg-white text-neutral-dark border border-gray-100'
+                }`}
+              >
+                {msg.content.split('\n').map((line, i) => (
+                  <p key={i} className="text-sm">{line || '\u00A0'}</p>
+                ))}
               </div>
             </div>
           </div>
         ))}
-        {chatMutation.isLoading && (
-          <div className="flex items-start space-x-3">
-            <FontAwesomeIcon icon={faRobot} className="text-primary text-xl mt-1 flex-shrink-0" />
-            <div className="bg-gray-100 p-3 rounded-lg inline-flex items-center border border-gray-200 shadow-sm">
-              <Spinner size="sm" color="primary" className="mr-2" /> {/* Changed color */}
-              <span className="text-sm italic text-neutral-DEFAULT">MindGuide está digitando...</span>
-            </div>
-          </div>
+        {/* Displaying assistant errors */}
+        {chatMutation.isError && (
+             <Alert type="error" message={`Erro ao enviar mensagem: ${chatMutation.error.message}`} />
         )}
-        <div ref={messagesEndRef} /> {/* Anchor for scrolling */}
+        {clearChatMutation.isError && (
+             <Alert type="error" message={`Erro ao limpar chat: ${clearChatMutation.error.message}`} />
+        )}
+        <div ref={messagesEndRef} />
       </div>
-      <form onSubmit={handleSend} className="p-4 border-t flex items-center space-x-2 bg-white"> {/* Changed bg */}
-        <Input
-          type="text"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          placeholder="Digite sua mensagem..."
-          className="flex-grow !mb-0" // Removed extra padding, let Input component handle it
-          disabled={chatMutation.isLoading}
-          aria-label="Entrada do chat"
-        />
-        <Button
-          type="submit"
-          variant="primary"
-          disabled={chatMutation.isLoading || !input.trim()}
-          aria-label="Enviar mensagem" // Accessibility
-        >
-          <FontAwesomeIcon icon={faPaperPlane} />
-        </Button>
-      </form>
+
+      <div className="bg-white rounded-b-xl shadow-md p-4 border-t">
+        <form onSubmit={handleSend} className="flex space-x-2">
+          <input
+            type="text"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            placeholder="Digite sua mensagem..."
+            className="flex-1 px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent disabled:opacity-50"
+            disabled={chatMutation.isLoading || clearChatMutation.isLoading} // Disable input during mutations
+            aria-label="Entrada do chat"
+          />
+          <Button
+            type="submit"
+            variant="primary"
+            disabled={chatMutation.isLoading || !input.trim() || clearChatMutation.isLoading} // Disable button during mutations
+            className="px-6"
+            aria-label="Enviar mensagem"
+          >
+            {/* Show spinner when sending */}
+            {chatMutation.isLoading ? <Spinner size="sm" color="white" /> : <FontAwesomeIcon icon={faPaperPlane} /> }
+          </Button>
+        </form>
+      </div>
     </div>
   );
 };
@@ -1841,7 +2093,7 @@ function Pages() {
           <Route path="/recursos" element={<ResourcesPage />} />
           <Route path="/privacidade" element={<PrivacyPolicyPage />} />
           <Route path="/login" element={<LoginPage />} />
-          <Route path="/register" element={<RegisterPage />} />
+          <Route path="/registrar" element={<RegisterPage />} />
 
           {/* Rotas de Conteúdo de Recursos */}
           <Route path="/recursos/artigo/entendendo-ansiedade" element={<ArtigoEntendendoAnsiedadePage />} />

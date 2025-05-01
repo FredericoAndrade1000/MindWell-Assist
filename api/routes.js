@@ -1,7 +1,7 @@
 // api/routes.js
 import express from 'express';
 import jwt from 'jsonwebtoken';
-import { User, Assessment, ChatMessage, Appointment, sequelize } from './db.js'; // <<< Import sequelize
+import { User, Assessment, ChatMessage, Appointment, ChatSession, sequelize } from './db.js'; // <<< Import ChatSession
 import { generateO4MiniResponse } from './chatbot.js';
 import { Op, fn, col, literal } from 'sequelize';
 import fs from 'fs/promises';
@@ -315,92 +315,150 @@ router.get('/assessments/history', authenticateToken, async (req, res, next) => 
 
 // --- Chat Routes ---
 
-// POST /chat
-router.post('/chat', rateLimiter(), async (req, res, next) => {
-    const { message, userId, sessionId } = req.body;
+// POST /chat (Protected & Rate Limited)
+router.post('/chat', authenticateToken, rateLimiter(), async (req, res, next) => {
+    const { message, sessionId } = req.body;
+    const userId = req.user.id; // Get user ID from authenticated token
 
     if (!message) {
         return res.status(400).json({ message: 'Message content is required.' });
     }
 
-     const currentSessionId = sessionId || crypto.randomUUID();
-
     try {
-         let user = null;
-         let assessmentContext = null;
+        let activeSessionId = sessionId;
 
-         // 1. Fetch User and Latest Assessment if userId is provided
-         if (userId) {
-             user = await User.findByPk(userId);
-             if (user) {
-                 const latestAssessment = await Assessment.findOne({
-                     where: { userId: userId },
-                     order: [['createdAt', 'DESC']],
-                     attributes: ['phqScore', 'gadScore', 'riskLevel', 'createdAt'] // Fetch relevant fields
-                 });
-                 if (latestAssessment) {
-                     const assessmentDate = new Date(latestAssessment.createdAt).toLocaleDateString('pt-BR');
-                     assessmentContext = `Contexto da última autoavaliação do usuário (em ${assessmentDate}): Pontuação PHQ-9 (Depressão) = ${latestAssessment.phqScore}, Pontuação GAD-7 (Ansiedade) = ${latestAssessment.gadScore}, Nível de Risco Geral = ${latestAssessment.riskLevel}. Use este contexto para adaptar suas respostas, se relevante, mas NÃO mencione diretamente as pontuações ou o nível de risco, a menos que o usuário pergunte especificamente sobre seus resultados. Foque em fornecer apoio e informação geral baseada no contexto.`;
-                     console.log(`[Chat Context] User ${userId}, Session ${currentSessionId}: ${assessmentContext}`);
-                 }
-             } else {
-                  console.warn(`[Chat] User ID ${userId} provided but not found. Proceeding anonymously for session ${currentSessionId}.`);
+        // --- Find or Create Active Session ---
+        if (!activeSessionId) {
+            let session = await ChatSession.findOne({ where: { userId, isActive: true }, order: [['createdAt', 'DESC']]});
+            if (!session) {
+                session = await ChatSession.create({ userId });
+            }
+            activeSessionId = session.id;
+        } else {
+             const session = await ChatSession.findOne({ where: { id: activeSessionId, userId, isActive: true }});
+             if (!session) {
+                 return res.status(403).json({ message: 'Invalid or inactive session ID.' });
              }
-         }
-
-        // 2. Save user message
-        await ChatMessage.create({
-            sessionId: currentSessionId,
-            userId: user ? user.id : null,
-            role: 'user',
-            content: message,
-        });
-
-        // 3. Prepare conversation history including context
-        const recentMessages = await ChatMessage.findAll({
-             where: { sessionId: currentSessionId },
-             order: [['createdAt', 'DESC']],
-             limit: 10 // Increased context slightly
-         });
-        const conversationHistory = recentMessages.reverse().map(msg => ({
-             role: msg.role,
-             content: msg.content
-        }));
-
-         // Ensure current user message is in history (if not already saved and retrieved)
-         if (!recentMessages.some(m => m.role === 'user' && m.content === message)) {
-              conversationHistory.push({ role: 'user', content: message });
-         }
-
-
-        // Prepend System Context if available
-        const messagesForApi = [];
-        if (assessmentContext) {
-            messagesForApi.push({ role: 'system', content: assessmentContext });
         }
-        messagesForApi.push(...conversationHistory);
 
+        // --- Prepare Context and History for Chatbot ---
+        const conversationHistoryWithContext = [];
 
-        // 4. Get AI response
-        const botReplyContent = await generateO4MiniResponse(messagesForApi);
-
-        // 5. Save AI response
-        await ChatMessage.create({
-            sessionId: currentSessionId,
-            userId: null,
-            role: 'assistant',
-            content: botReplyContent,
+        // 1. Add Assessment Context (System Message)
+        const latestAssessment = await Assessment.findOne({
+            where: { userId },
+            order: [['createdAt', 'DESC']],
+            attributes: ['phqScore', 'gadScore', 'riskLevel', 'createdAt']
         });
 
-        // 6. Send response back to client
-        res.json({ reply: botReplyContent, sessionId: currentSessionId });
+        if (latestAssessment) {
+            const assessmentDate = new Date(latestAssessment.createdAt).toLocaleDateString('pt-BR');
+            const assessmentContext = `Contexto da última autoavaliação do usuário (em ${assessmentDate}): Pontuação PHQ-9 (Depressão) = ${latestAssessment.phqScore}, Pontuação GAD-7 (Ansiedade) = ${latestAssessment.gadScore}, Nível de Risco Geral = ${latestAssessment.riskLevel}. Use este contexto para adaptar suas respostas, se relevante, mas NÃO mencione diretamente as pontuações ou o nível de risco, a menos que o usuário pergunte especificamente sobre seus resultados. Foque em fornecer apoio e informação geral baseada no contexto.`;
+            conversationHistoryWithContext.push({ role: 'system', content: assessmentContext });
+            console.log(`[Chat Context] User ${userId}, Session ${activeSessionId}: Added assessment context.`);
+        }
+
+        // 2. Fetch Recent Messages from the Active Session
+        const recentMessages = await ChatMessage.findAll({
+             where: {
+                 sessionId: activeSessionId // Fetch only from the current active session
+             },
+             order: [['createdAt', 'ASC']], // Get in chronological order
+             limit: 15, // Limit context window slightly more
+             attributes: ['role', 'content']
+         });
+
+         // Add fetched messages to the context array
+         conversationHistoryWithContext.push(...recentMessages);
+
+        // 3. Add the current user message to the history being sent to the AI
+        conversationHistoryWithContext.push({ role: 'user', content: message });
+
+        // --- Call Chatbot Service ---
+        // Now call with the correctly structured single array
+        const botResponse = await generateO4MiniResponse(conversationHistoryWithContext);
+
+        // --- Save User and Assistant Messages to DB ---
+        // Save user message (using the already determined activeSessionId)
+        await ChatMessage.create({
+            sessionId: activeSessionId,
+            userId: userId,
+            role: 'user',
+            content: message
+        });
+
+        // Ensure botResponse is a string before saving
+        const botResponseContent = typeof botResponse === 'string' ? botResponse : JSON.stringify(botResponse);
+
+        // Save assistant response
+        await ChatMessage.create({
+            sessionId: activeSessionId,
+            userId: userId,
+            role: 'assistant',
+            content: botResponseContent
+        });
+
+        // --- Send Response to Client ---
+        res.json({ reply: botResponseContent, sessionId: activeSessionId });
 
     } catch (error) {
-        console.error(`[Chat Error] Session ${currentSessionId}:`, error);
-        if (error.message && error.message.toLowerCase().includes('openai') || error.message.includes('AI assistant')) {
-             return res.status(503).json({ message: 'Desculpe, o assistente de IA está temporariamente indisponível. Por favor, tente novamente mais tarde.' });
+        console.error("Chat Endpoint Error:", error);
+        // Provide a more generic error to the client
+        res.status(500).json({ message: "Ocorreu um erro interno ao processar sua mensagem no chat." });
+        // No next(error) here to avoid sending detailed stack trace if not desired
+    }
+});
+
+// GET /chat/history (Protected)
+router.get('/chat/history', authenticateToken, async (req, res, next) => {
+    const userId = req.user.id;
+    try {
+        // Find the latest active session for the user
+        const activeSession = await ChatSession.findOne({
+            where: { userId, isActive: true },
+            order: [['createdAt', 'DESC']]
+        });
+
+        if (!activeSession) {
+            return res.json({ messages: [] }); // No active session, return empty history
         }
-        next(error); // Pass to global handler
+
+        // Fetch messages for that session
+        const messages = await ChatMessage.findAll({
+            where: { sessionId: activeSession.id },
+            order: [['createdAt', 'ASC']], // Chronological order
+            attributes: ['role', 'content'] // Only return role and content
+        });
+
+        res.json({ messages: messages || [] });
+
+    } catch (error) {
+        console.error("Chat History Error:", error);
+        next(error);
+    }
+});
+
+// DELETE /chat/session (Protected)
+router.delete('/chat/session', authenticateToken, async (req, res, next) => {
+    const userId = req.user.id;
+    try {
+        // Find the latest active session for the user
+        const activeSession = await ChatSession.findOne({
+            where: { userId, isActive: true },
+        });
+
+        if (activeSession) {
+            // Mark the session as inactive
+            activeSession.isActive = false;
+            await activeSession.save();
+            res.status(200).json({ message: 'Chat session cleared successfully.' });
+        } else {
+            res.status(404).json({ message: 'No active chat session found to clear.' });
+        }
+
+    } catch (error) {
+        console.error("Clear Chat Session Error:", error);
+        next(error);
     }
 });
 
