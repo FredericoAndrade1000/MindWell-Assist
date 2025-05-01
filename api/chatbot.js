@@ -62,9 +62,6 @@ const generateO4MiniResponse = async (conversationHistoryWithContext, reasoningE
         ...conversationHistoryWithContext // Spread the dynamic context and history passed from routes.js
     ];
 
-    // Log the final payload being sent (excluding API key)
-    console.log("Sending to OpenAI:", JSON.stringify(messages.map(m => ({ role: m.role, content: m.content.substring(0, 100) + (m.content.length > 100 ? '...' : '') })), null, 2)); // Log truncated content
-
     try {
         const completion = await openai.chat.completions.create({
             model: "o4-mini",

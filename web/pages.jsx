@@ -1048,7 +1048,7 @@ const ChatPage = () => {
       if (response.data.sessionId) {
         setSessionId(response.data.sessionId);
       }
-      setMessages(prev => [...prev, { role: 'assistant', content: response.data.message }]);
+      setMessages(prev => [...prev, { role: 'assistant', content: response.data.reply }]);
     },
     onError: (error) => {
       setMessages(prev => [...prev, {
@@ -1172,28 +1172,29 @@ const ChatPage = () => {
         )}
 
         {/* Chat Messages */}
-        {!isLoadingHistory && !historyError && messages.map((msg, index) => (
-          // Message rendering logic (unchanged)
-          <div key={index} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-            <div className={`flex items-start space-x-3 ${msg.role === 'user' ? 'flex-row-reverse space-x-reverse' : ''} max-w-[80%]`}>
-              <FontAwesomeIcon 
-                icon={msg.role === 'user' ? faUser : faRobot} 
-                className={`text-xl mt-1 flex-shrink-0 ${msg.role === 'user' ? 'text-secondary-dark' : 'text-primary'}`} 
-              />
-              <div 
-                className={`p-4 rounded-xl shadow-sm ${
-                  msg.role === 'user' 
-                    ? 'bg-primary text-white' 
-                    : 'bg-white text-neutral-dark border border-gray-100'
-                }`}
-              >
-                {msg.content.split('\n').map((line, i) => (
-                  <p key={i} className="text-sm">{line || '\u00A0'}</p>
-                ))}
+        {!isLoadingHistory && !historyError && messages
+          .filter(msg => msg && msg.content && msg.content.trim().length > 0)
+          .map((msg, index) => (
+            <div key={index} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+              <div className={`flex items-start space-x-3 ${msg.role === 'user' ? 'flex-row-reverse space-x-reverse' : ''} max-w-[80%]`}>
+                <FontAwesomeIcon 
+                  icon={msg.role === 'user' ? faUser : faRobot} 
+                  className={`text-xl mt-1 flex-shrink-0 ${msg.role === 'user' ? 'text-secondary-dark' : 'text-primary'}`} 
+                />
+                <div 
+                  className={`p-4 rounded-xl shadow-sm ${
+                    msg.role === 'user' 
+                      ? 'bg-primary text-white' 
+                      : 'bg-white text-neutral-dark border border-gray-100'
+                  }`}
+                >
+                  {msg.content.split('\n').map((line, i) => (
+                    <p key={i} className="text-sm">{line || '\u00A0'}</p>
+                  ))}
+                </div>
               </div>
             </div>
-          </div>
-        ))}
+          ))}
         {/* Displaying assistant errors */}
         {chatMutation.isError && (
              <Alert type="error" message={`Erro ao enviar mensagem: ${chatMutation.error.message}`} />
