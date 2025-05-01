@@ -63,7 +63,7 @@ app.use(helmet());
 // CORS Configuration
 // Adjust origin based on your deployment needs
 const allowedOrigins = process.env.NODE_ENV === 'production'
-    ? ['YOUR_PRODUCTION_FRONTEND_URL'] // Add your frontend production URL here
+    ? ['http://93.127.223.204:5173'] // Add your frontend production URL here
     : ['http://localhost:5173', 'http://127.0.0.1:5173'];
 
 app.use(cors({

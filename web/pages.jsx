@@ -1019,73 +1019,60 @@ const ChatPage = () => {
   const [sessionId, setSessionId] = useState(null);
   const messagesEndRef = useRef(null);
   const chatContainerRef = useRef(null);
-  const queryClient = useQueryClient(); // Get query client instance
+  const queryClient = useQueryClient();
 
   // --- Fetch Chat History ---
   const { data: chatHistory, isLoading: isLoadingHistory, error: historyError } = useQuery({
-    queryKey: ['chatHistory', user?.id], // Key based on user ID
-    queryFn: () => apiClient.get('/chat/history').then(res => res.data.messages || []), // Assume endpoint returns { messages: [...] } or empty array
-    enabled: isAuthenticated, // Only fetch if logged in
-    staleTime: 5 * 60 * 1000, // Consider history stale after 5 minutes
-    refetchOnWindowFocus: false, // Don't refetch just on window focus
+    queryKey: ['chatHistory', sessionId], // Key based on sessionId
+    queryFn: () => apiClient.get(`/chat/history${sessionId ? `?sessionId=${sessionId}` : ''}`).then(res => {
+      if (res.data.sessionId) {
+        setSessionId(res.data.sessionId);
+      }
+      return res.data.messages || [];
+    }),
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
   });
 
   // --- Update messages state with history ---
   useEffect(() => {
     if (chatHistory) {
-      // Only set history if local messages are empty (avoids overriding during session)
-      // Or if the history length is different (e.g., after clearing)
-      if (messages.length === 0 || messages.length !== chatHistory.length) {
-        setMessages(chatHistory);
-        // Try to get sessionId from history if not already set (optional, depends on backend structure)
-        // if (!sessionId && chatHistory.length > 0) {
-        //   // Logic to extract sessionId from history if available
-        // }
-      }
+      setMessages(chatHistory);
     }
-  }, [chatHistory]); // Depend on chatHistory data
+  }, [chatHistory]);
 
-  // --- Send Message Mutation ---
+  // --- Chat Mutation ---
   const chatMutation = useMutation({
-    mutationFn: (newMessageData) => apiClient.post('/chat', newMessageData),
-    onSuccess: (response, variables) => {
-        // Append only the assistant's reply
-        setMessages(prev => [...prev, { role: 'assistant', content: response.data.reply }]);
-        if (!sessionId && response.data.sessionId) {
-            setSessionId(response.data.sessionId);
-        }
-        // Optionally invalidate history query if saving happens implicitly via /chat
-        // queryClient.invalidateQueries({ queryKey: ['chatHistory', user?.id] });
+    mutationFn: (data) => apiClient.post('/chat', data),
+    onSuccess: (response) => {
+      if (response.data.sessionId) {
+        setSessionId(response.data.sessionId);
+      }
+      setMessages(prev => [...prev, { role: 'assistant', content: response.data.message }]);
     },
     onError: (error) => {
-      console.error("Chat error:", error);
-      // Show error as a message from the assistant
       setMessages(prev => [...prev, {
         role: 'assistant',
-        content: `Erro: ${error.response?.data?.message || 'Não foi possível processar sua mensagem.'}`
+        content: `Desculpe, ocorreu um erro: ${error.response?.data?.message || 'Tente novamente mais tarde.'}`
       }]);
-    },
+    }
   });
 
-    // --- Clear Chat Mutation ---
-    const clearChatMutation = useMutation({
-      mutationFn: () => apiClient.delete('/chat/session'), // Assume DELETE request to clear session
-      onSuccess: () => {
-        setMessages([]); // Clear local messages
-        setSessionId(null); // Reset session ID
-        queryClient.invalidateQueries({ queryKey: ['chatHistory', user?.id] }); // Refetch history (which should be empty)
-        // Optionally show a success message or keep it silent
-        console.log("Chat history cleared.");
-      },
-      onError: (error) => {
-        console.error("Clear chat error:", error);
-        // Show error message within the chat?
-        setMessages(prev => [...prev, {
-            role: 'assistant',
-            content: `Erro ao limpar chat: ${error.response?.data?.message || 'Tente novamente.'}`
-        }]);
-      }
-    });
+  // --- Clear Chat Mutation ---
+  const clearChatMutation = useMutation({
+    mutationFn: () => apiClient.delete(`/chat/session${sessionId ? `?sessionId=${sessionId}` : ''}`),
+    onSuccess: () => {
+      setMessages([]);
+      setSessionId(null);
+      queryClient.invalidateQueries({ queryKey: ['chatHistory', sessionId] });
+    },
+    onError: (error) => {
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: `Erro ao limpar chat: ${error.response?.data?.message || 'Tente novamente.'}`
+      }]);
+    }
+  });
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -1093,28 +1080,26 @@ const ChatPage = () => {
 
   useEffect(scrollToBottom, [messages]);
 
-  // --- Reset on Auth Change (keeps clearing local state) ---
+  // --- Reset on Auth Change ---
   useEffect(() => {
     if (!isAuthenticated) {
-      setMessages([]);
-      setSessionId(null);
+      // Keep the session for anonymous users
+      if (!sessionId) {
+        setMessages([]);
+      }
     }
-    // History fetching is handled by useQuery's 'enabled' flag
-  }, [isAuthenticated]);
+  }, [isAuthenticated, sessionId]);
 
   const handleSend = (e) => {
     e.preventDefault();
     if (input.trim() && !chatMutation.isLoading) {
       const userMessage = { role: 'user', content: input };
-      // Append user message locally immediately
       setMessages(prev => [...prev, userMessage]);
 
       const messageData = {
         message: input,
-        sessionId: sessionId, // Include current session ID
-        // Backend should handle associating with the user via token
+        sessionId: sessionId,
       };
-      // No need to send userId explicitly if backend uses token
 
       chatMutation.mutate(messageData);
       setInput('');
@@ -1130,7 +1115,7 @@ const ChatPage = () => {
   const showInitialBotMessage = !isLoadingHistory && !historyError && messages.length === 0;
 
   return (
-    <div className="flex flex-col h-full max-w-4xl mx-auto">
+    <div className="flex flex-col h-full">
       <div className="bg-white rounded-t-xl shadow-md">
         <div className="p-4 border-b bg-primary-light text-primary-dark font-semibold flex items-center justify-between">
           <div className="flex items-center">
@@ -1178,6 +1163,9 @@ const ChatPage = () => {
               <p className="text-sm text-neutral-dark">Olá! Eu sou o MindGuide. Como posso te ajudar hoje? Você pode perguntar sobre bem-estar, ansiedade, humor ou como funcionam as autoavaliações.</p>
               {isAuthenticated && (
                 <p className="text-xs text-neutral-DEFAULT mt-2 italic">Se você fez uma autoavaliação recentemente, posso levar isso em conta.</p>
+              )}
+              {!isAuthenticated && (
+                <p className="text-xs text-neutral-DEFAULT mt-2 italic">Para salvar seu histórico de conversas e ter acesso a recursos personalizados, considere fazer login.</p>
               )}
             </div>
           </div>

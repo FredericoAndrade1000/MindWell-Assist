@@ -315,10 +315,10 @@ router.get('/assessments/history', authenticateToken, async (req, res, next) => 
 
 // --- Chat Routes ---
 
-// POST /chat (Protected & Rate Limited)
-router.post('/chat', authenticateToken, rateLimiter(), async (req, res, next) => {
+// POST /chat (Rate Limited)
+router.post('/chat', rateLimiter(), async (req, res, next) => {
     const { message, sessionId } = req.body;
-    const userId = req.user.id; // Get user ID from authenticated token
+    const userId = req.user?.id; // Optional user ID from token
 
     if (!message) {
         return res.status(400).json({ message: 'Message content is required.' });
@@ -329,33 +329,48 @@ router.post('/chat', authenticateToken, rateLimiter(), async (req, res, next) =>
 
         // --- Find or Create Active Session ---
         if (!activeSessionId) {
-            let session = await ChatSession.findOne({ where: { userId, isActive: true }, order: [['createdAt', 'DESC']]});
-            if (!session) {
-                session = await ChatSession.create({ userId });
+            let session;
+            if (userId) {
+                // For logged-in users, find or create a user-specific session
+                session = await ChatSession.findOne({ where: { userId, isActive: true }, order: [['createdAt', 'DESC']]});
+                if (!session) {
+                    session = await ChatSession.create({ userId });
+                }
+            } else {
+                // For anonymous users, create a new session without userId
+                session = await ChatSession.create({ userId: null });
             }
             activeSessionId = session.id;
         } else {
-             const session = await ChatSession.findOne({ where: { id: activeSessionId, userId, isActive: true }});
-             if (!session) {
-                 return res.status(403).json({ message: 'Invalid or inactive session ID.' });
-             }
+            const session = await ChatSession.findOne({ 
+                where: { 
+                    id: activeSessionId, 
+                    isActive: true,
+                    ...(userId ? { userId } : { userId: null }) // Match userId or null for anonymous
+                }
+            });
+            if (!session) {
+                return res.status(403).json({ message: 'Invalid or inactive session ID.' });
+            }
         }
 
         // --- Prepare Context and History for Chatbot ---
         const conversationHistoryWithContext = [];
 
-        // 1. Add Assessment Context (System Message)
-        const latestAssessment = await Assessment.findOne({
-            where: { userId },
-            order: [['createdAt', 'DESC']],
-            attributes: ['phqScore', 'gadScore', 'riskLevel', 'createdAt']
-        });
+        // 1. Add Assessment Context (System Message) - only for logged-in users
+        if (userId) {
+            const latestAssessment = await Assessment.findOne({
+                where: { userId },
+                order: [['createdAt', 'DESC']],
+                attributes: ['phqScore', 'gadScore', 'riskLevel', 'createdAt']
+            });
 
-        if (latestAssessment) {
-            const assessmentDate = new Date(latestAssessment.createdAt).toLocaleDateString('pt-BR');
-            const assessmentContext = `Contexto da última autoavaliação do usuário (em ${assessmentDate}): Pontuação PHQ-9 (Depressão) = ${latestAssessment.phqScore}, Pontuação GAD-7 (Ansiedade) = ${latestAssessment.gadScore}, Nível de Risco Geral = ${latestAssessment.riskLevel}. Use este contexto para adaptar suas respostas, se relevante, mas NÃO mencione diretamente as pontuações ou o nível de risco, a menos que o usuário pergunte especificamente sobre seus resultados. Foque em fornecer apoio e informação geral baseada no contexto.`;
-            conversationHistoryWithContext.push({ role: 'system', content: assessmentContext });
-            console.log(`[Chat Context] User ${userId}, Session ${activeSessionId}: Added assessment context.`);
+            if (latestAssessment) {
+                const assessmentDate = new Date(latestAssessment.createdAt).toLocaleDateString('pt-BR');
+                const assessmentContext = `Contexto da última autoavaliação do usuário (em ${assessmentDate}): Pontuação PHQ-9 (Depressão) = ${latestAssessment.phqScore}, Pontuação GAD-7 (Ansiedade) = ${latestAssessment.gadScore}, Nível de Risco Geral = ${latestAssessment.riskLevel}. Use este contexto para adaptar suas respostas, se relevante, mas NÃO mencione diretamente as pontuações ou o nível de risco, a menos que o usuário pergunte especificamente sobre seus resultados. Foque em fornecer apoio e informação geral baseada no contexto.`;
+                conversationHistoryWithContext.push({ role: 'system', content: assessmentContext });
+                console.log(`[Chat Context] User ${userId}, Session ${activeSessionId}: Added assessment context.`);
+            }
         }
 
         // 2. Fetch Recent Messages from the Active Session
@@ -409,15 +424,30 @@ router.post('/chat', authenticateToken, rateLimiter(), async (req, res, next) =>
     }
 });
 
-// GET /chat/history (Protected)
-router.get('/chat/history', authenticateToken, async (req, res, next) => {
-    const userId = req.user.id;
+// GET /chat/history
+router.get('/chat/history', async (req, res, next) => {
+    const userId = req.user?.id; // Optional user ID from token
+    const { sessionId } = req.query; // Get sessionId from query params
+
     try {
-        // Find the latest active session for the user
-        const activeSession = await ChatSession.findOne({
-            where: { userId, isActive: true },
-            order: [['createdAt', 'DESC']]
-        });
+        let activeSession;
+        
+        if (sessionId) {
+            // Find session by ID, matching either userId or null for anonymous
+            activeSession = await ChatSession.findOne({
+                where: { 
+                    id: sessionId, 
+                    isActive: true,
+                    ...(userId ? { userId } : { userId: null })
+                }
+            });
+        } else if (userId) {
+            // For logged-in users, find their latest active session
+            activeSession = await ChatSession.findOne({
+                where: { userId, isActive: true },
+                order: [['createdAt', 'DESC']]
+            });
+        }
 
         if (!activeSession) {
             return res.json({ messages: [] }); // No active session, return empty history
@@ -426,11 +456,11 @@ router.get('/chat/history', authenticateToken, async (req, res, next) => {
         // Fetch messages for that session
         const messages = await ChatMessage.findAll({
             where: { sessionId: activeSession.id },
-            order: [['createdAt', 'ASC']], // Chronological order
-            attributes: ['role', 'content'] // Only return role and content
+            order: [['createdAt', 'ASC']],
+            attributes: ['role', 'content']
         });
 
-        res.json({ messages: messages || [] });
+        res.json({ messages: messages || [], sessionId: activeSession.id });
 
     } catch (error) {
         console.error("Chat History Error:", error);
@@ -438,14 +468,29 @@ router.get('/chat/history', authenticateToken, async (req, res, next) => {
     }
 });
 
-// DELETE /chat/session (Protected)
-router.delete('/chat/session', authenticateToken, async (req, res, next) => {
-    const userId = req.user.id;
+// DELETE /chat/session
+router.delete('/chat/session', async (req, res, next) => {
+    const userId = req.user?.id; // Optional user ID from token
+    const { sessionId } = req.query; // Get sessionId from query params
+
     try {
-        // Find the latest active session for the user
-        const activeSession = await ChatSession.findOne({
-            where: { userId, isActive: true },
-        });
+        let activeSession;
+        
+        if (sessionId) {
+            // Find session by ID, matching either userId or null for anonymous
+            activeSession = await ChatSession.findOne({
+                where: { 
+                    id: sessionId, 
+                    isActive: true,
+                    ...(userId ? { userId } : { userId: null })
+                }
+            });
+        } else if (userId) {
+            // For logged-in users, find their latest active session
+            activeSession = await ChatSession.findOne({
+                where: { userId, isActive: true }
+            });
+        }
 
         if (activeSession) {
             // Mark the session as inactive

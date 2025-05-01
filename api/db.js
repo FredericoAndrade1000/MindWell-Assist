@@ -304,18 +304,18 @@ ChatSession.init({
     },
     userId: {
         type: DataTypes.INTEGER,
-        allowNull: false, // A session must belong to a user
+        allowNull: true, // Allow null for anonymous sessions
         references: {
             model: User,
             key: 'id'
         },
-        onDelete: 'CASCADE', // Delete sessions if user is deleted
+        onDelete: 'CASCADE',
         onUpdate: 'CASCADE'
     },
     isActive: {
         type: DataTypes.BOOLEAN,
         allowNull: false,
-        defaultValue: true, // Sessions start as active
+        defaultValue: true,
     },
     // Timestamps (createdAt, updatedAt) are added by default by Sequelize
 }, {
