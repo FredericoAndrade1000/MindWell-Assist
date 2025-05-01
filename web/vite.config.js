@@ -39,6 +39,7 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2,woff,jpg,mp3}'], // Adicionado jpg, mp3
+        maximumFileSizeToCacheInBytes: 2 * 1024 * 1024,
         runtimeCaching: [
           {
             urlPattern: ({ request }) => request.destination === 'document',
@@ -136,6 +137,7 @@ export default defineConfig({
   ],
   server: {
     port: 5173,
+    host: '0.0.0.0',
     strictPort: true,
   },
   test: {
