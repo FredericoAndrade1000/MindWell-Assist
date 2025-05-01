@@ -422,3 +422,7 @@
 2025-05-01T03:35:35.296Z - Scheduled 'anonymizeOldAssessments' job for 03:00 UTC daily.
 2025-05-01T03:35:35.297Z - Scheduled 'calculateDailyStats' job for 00:05 UTC daily.
 2025-05-01T03:35:35.297Z - Started 2 cron jobs.
+2025-05-01T03:44:22.639Z - Initializing cron jobs...
+2025-05-01T03:44:22.655Z - Scheduled 'anonymizeOldAssessments' job for 03:00 UTC daily.
+2025-05-01T03:44:22.656Z - Scheduled 'calculateDailyStats' job for 00:05 UTC daily.
+2025-05-01T03:44:22.656Z - Started 2 cron jobs.

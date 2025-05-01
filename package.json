@@ -9,7 +9,7 @@
   ],
   "scripts": {
     "dev": "concurrently \"npm run dev -w web\" \"npm run dev -w api\"",
-    "build": "npm run build -w web && npm run build -w api",
+    "build": "npm run build -w web && npm start -w api",
     "test": "npm run test -w web && npm run test -w api",
     "lint": "npm run lint -w web && npm run lint -w api",
     "install:all": "npm install && npm install -w web && npm install -w api"
